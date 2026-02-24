@@ -1,1 +1,22 @@
+# Environment
 .env
+.env.local
+.env.*.local
+
+# n8n local data
+.n8n/
+
+# Docker
+docker-compose.override.yml
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*~
