@@ -1,33 +1,32 @@
 # job-hunter-n8n
 
-**TL;DR:** n8n workflows для скрапинга вакансий. Часть системы [job-hunter](https://github.com/mshykhov/job-hunter). Собирает вакансии с DOU, Djinni, Indeed и отправляет в job-hunter-api через REST.
+**TL;DR:** n8n scraping workflows for [Job Hunter](https://github.com/mshykhov/job-hunter). Collects vacancies from DOU, Djinni, Indeed and sends them to the API via REST.
 
-> **Стек**: n8n 2.10 (Community), PostgreSQL 16, Docker Compose
+> **Stack**: n8n 2.10 (Community), PostgreSQL 16, Docker Compose
 
 ---
 
 ## Portfolio Project
 
-**Публичный репозиторий.** Всё должно быть чисто и профессионально.
+**Public repository.** Everything must be clean and professional.
 
-### Требования
-- **README, коммиты** — на английском
-- **Осмысленные коммиты** — conventional commits
-- **Без мусора** — никаких тестовых/временных workflows в master
-- **Без упоминаний AI** в коммитах
-- **CLAUDE.md** — единственный файл на русском
+### Standards
+- **English only** — README, commits, CLAUDE.md
+- **Meaningful commits** — conventional commits
+- **No junk** — no test/temporary workflows in master
+- **No AI mentions** in commits
 
 ---
 
-## Руководство для AI
+## AI Guidelines
 
-### Принципы работы
-- **Workflows — это конфиг, не код.** Редактируются в n8n UI, экспортируются как JSON
-- **Не редактировать JSON вручную** — только через n8n UI → export
-- **No secrets in code**: API-ключи, токены — только через .env (gitignored) или n8n credentials UI
-- **N8N_ENCRYPTION_KEY** — один ключ для всех сред. Без него credentials не расшифруются
+### Principles
+- **Workflows are config, not code.** Edit in n8n UI, export as JSON
+- **Never edit JSON manually** — only via n8n UI → export
+- **No secrets in code** — API keys, tokens via .env (gitignored) or n8n credentials UI
+- **N8N_ENCRYPTION_KEY** — one key across all environments. Without it, credentials can't be decrypted
 
-### Структура
+### Structure
 ```
 job-hunter-n8n/
 ├── docker-compose.yml      # n8n + PostgreSQL (local dev)
@@ -41,34 +40,22 @@ job-hunter-n8n/
 └── README.md
 ```
 
-### Рабочий цикл
+### Development Cycle
 ```
 1. docker compose up -d
-2. http://localhost:5678
-3. Редактировать workflows в UI
+2. Open http://localhost:5678
+3. Edit workflows in UI
 4. ./scripts/export.sh
-5. git add workflows/ && git commit -m "feat: add dou scraper"
+5. git add workflows/ && git commit
 ```
 
-### Workflow conventions
-- Одна платформа = один workflow
-- Каждый workflow отправляет POST в job-hunter-api `/api/jobs/ingest`
-- Schedule Trigger: каждые 2 часа
-- Нормализованный JSON на выходе:
-```json
-{
-  "title": "...",
-  "company": "...",
-  "url": "...",
-  "description": "...",
-  "source": "DOU|DJINNI|INDEED",
-  "salary": "...",
-  "location": "...",
-  "remote": true
-}
-```
+### Workflow Conventions
+- One platform = one workflow
+- Each workflow sends POST to job-hunter-api `/api/jobs/ingest`
+- Schedule Trigger: every 2 hours
+- Output: normalized JSON with job data
 
-### Деплой
-- Локально: `docker compose up -d`
-- Продакшн: Helm chart в smhomelab/deploy, ArgoCD
-- Credentials пересоздаются вручную на каждом инстансе
+### Deployment
+- Local: `docker compose up -d`
+- Production: Helm chart in smhomelab/deploy, ArgoCD
+- Credentials are re-created manually on each instance
