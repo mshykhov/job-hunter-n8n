@@ -29,11 +29,18 @@ services:
       - DB_POSTGRESDB_USER=${DB_POSTGRESDB_USER:-n8n}
       - DB_POSTGRESDB_PASSWORD=${DB_POSTGRESDB_PASSWORD}
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - N8N_VERSION_CONTROL_ENABLED=true
       - GENERIC_TIMEZONE=Europe/Kiev
       - N8N_HOST=localhost
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
       - WEBHOOK_URL=http://localhost:5678/
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - TELEGRAM_LOG_TOPIC_ID=${TELEGRAM_LOG_TOPIC_ID}
+      - TELEGRAM_ALERT_TOPIC_ID=${TELEGRAM_ALERT_TOPIC_ID}
+      - JOB_HUNTER_API_URL=${JOB_HUNTER_API_URL}
+      - CREDENTIALS_OVERWRITE_DATA={"telegramApi":{"accessToken":"${TELEGRAM_BOT_TOKEN}","baseUrl":"https://api.telegram.org"}}
     volumes:
       - n8n_storage:/home/node/.n8n
     depends_on:

@@ -9,6 +9,7 @@ LOCAL_DIR="$(dirname "$0")/../workflows"
 docker exec "$CONTAINER" rm -rf "$EXPORT_DIR"
 docker exec "$CONTAINER" mkdir -p "$EXPORT_DIR"
 docker exec "$CONTAINER" n8n export:workflow --all --separate --output="$EXPORT_DIR"
-docker cp "$CONTAINER:$EXPORT_DIR/." "$LOCAL_DIR/"
+mkdir -p "$LOCAL_DIR"
+docker exec "$CONTAINER" tar cf - -C "$EXPORT_DIR" . | tar xf - -C "$LOCAL_DIR"
 
 echo "Exported $(ls "$LOCAL_DIR"/*.json 2>/dev/null | wc -l) workflows"
