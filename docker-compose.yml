@@ -40,12 +40,22 @@ services:
       - TELEGRAM_LOG_TOPIC_ID=${TELEGRAM_LOG_TOPIC_ID}
       - TELEGRAM_ALERT_TOPIC_ID=${TELEGRAM_ALERT_TOPIC_ID}
       - JOB_HUNTER_API_URL=${JOB_HUNTER_API_URL}
+      - SCRAPER_URL=${SCRAPER_URL:-http://scraper:8000}
       - CREDENTIALS_OVERWRITE_DATA={"telegramApi":{"accessToken":"${TELEGRAM_BOT_TOKEN}","baseUrl":"https://api.telegram.org"}}
     volumes:
       - n8n_storage:/home/node/.n8n
     depends_on:
       postgres:
         condition: service_healthy
+
+  scraper:
+    image: ${SCRAPER_IMAGE:-mshykhov/job-hunter-scraper:latest}
+    container_name: job-hunter-scraper
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DEFAULT_PROXIES=${SCRAPER_DEFAULT_PROXIES:-}
 
 volumes:
   db_storage:
