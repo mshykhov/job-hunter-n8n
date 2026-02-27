@@ -126,6 +126,7 @@ New endpoint `POST /jobs/enrich` on job-spy-api. Fetches full detail pages from 
 | applicants | `figcaption.num-applicants__caption` | "Over 200 applicants" |
 | salary | `div.salary.compensation__salary` | "$126,000-$180,000/yr" |
 | apply_url | `code#applyUrl` | Direct application link |
+| published_at | `meta[name=description]` "Posted HH:MM:SS AM/PM" + date_posted | "2026-02-26T12:42:21Z" |
 
 ### Worker pool architecture
 
@@ -158,7 +159,7 @@ Each proxy has a **stable browser fingerprint** (User-Agent, Sec-Ch-Ua, Accept-L
 ```json
 {
   "jobs": [
-    {"url": "https://linkedin.com/jobs/view/123", "job_id": "123"}
+    {"url": "https://linkedin.com/jobs/view/123", "job_id": "123", "date_posted": "2026-02-26"}
   ],
   "proxies": [
     {
@@ -195,7 +196,8 @@ Each proxy has a **stable browser fingerprint** (User-Agent, Sec-Ch-Ua, Accept-L
         "industries": "Software Development",
         "applicants": "Over 200 applicants",
         "salary": "$126,000 - $180,000/yr",
-        "apply_url": "https://company.com/apply/123"
+        "apply_url": "https://company.com/apply/123",
+        "published_at": "2026-02-26T12:42:21Z"
       }
     },
     {
@@ -308,7 +310,7 @@ Duration: 120s
   salary: enriched.salary || searchData.salary,
   location: searchData.location,
   remote: searchData.remote,
-  publishedAt: searchData.publishedAt,
+  publishedAt: enriched.published_at || searchData.publishedAt,
   rawData: {
     ...searchData.rawData,     // original search fields
     ...enriched.data           // all enriched fields
@@ -333,7 +335,8 @@ Duration: 120s
 | python-jobspy pagination bug (#258) | Offsets skip non-linearly | `hours_old=1` keeps volume low |
 | LinkedIn caps at offset=1000 | Max ~100-200 actual results | Fresh jobs window is small |
 | Detail page may require login | Redirect to `/signup` | Proxy dies, others continue |
-| No JSON-LD on LinkedIn pages | Must parse HTML with selectors | BeautifulSoup in job-spy-api |
+| No JSON-LD on LinkedIn guest pages | Must parse HTML with selectors | BeautifulSoup in job-spy-api |
+| `published_at` time from meta desc | "Posted HH:MM:SS AM/PM" — timezone unspecified (likely UTC) | Combined with date_posted from Phase 1 |
 | `date_posted` needs both CSS selectors | Fixed in python-jobspy main branch | job-spy-api v0.2.1 |
 
 ## Edge Cases
