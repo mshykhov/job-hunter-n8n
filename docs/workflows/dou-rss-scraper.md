@@ -69,6 +69,7 @@ Available DOU filters (not used — backend filters later):
 | location | `<title>` remaining parts | Kyiv, Lviv |
 | remote | `<title>` contains "віддалено" | true |
 | publishedAt | `<pubDate>` | Mon, 23 Feb 2026 18:06:19 +0200 |
+| rawData | Full RSS item object | `{title, link, description, pubDate, ...}` |
 
 ## Edge Cases
 

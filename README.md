@@ -6,13 +6,14 @@ Scraping workflows for job vacancy aggregation. Part of the [Job Hunter](https:/
 
 n8n workflows that periodically scrape job listings from multiple platforms and send normalized data to the Job Hunter API via REST.
 
-### Supported Platforms
+### Platforms
 
-| Platform | Method | Market |
-|----------|--------|--------|
-| [DOU](https://jobs.dou.ua) | RSS feed | Ukraine |
-| [Djinni](https://djinni.co) | HTML scraping | Ukraine |
-| [Indeed](https://indeed.com) | RSS feed | International |
+| Platform | Method | Market | Status |
+|----------|--------|--------|--------|
+| [DOU](https://jobs.dou.ua) | RSS feed | Ukraine | Live |
+| [Djinni](https://djinni.co) | HTML scraping | Ukraine | Planned |
+| [LinkedIn](https://linkedin.com) | via Google Jobs / JSearch | International | Planned |
+| [Google Jobs](https://www.google.com/search?q=jobs) | SerpAPI / scraping | International | Planned |
 
 ## Quick Start
 
@@ -25,10 +26,15 @@ Open [http://localhost:5678](http://localhost:5678) to access the n8n editor.
 
 ### Environment Variables
 
+See `.env.example` for all variables. Key ones:
+
 | Variable | Description |
 |----------|-------------|
 | `DB_POSTGRESDB_PASSWORD` | PostgreSQL password |
 | `N8N_ENCRYPTION_KEY` | Encryption key for credentials (generate once: `openssl rand -hex 32`) |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token for scraper logs/alerts |
+| `TELEGRAM_CHAT_ID` | Telegram chat ID for notifications |
+| `JOB_HUNTER_API_URL` | Job Hunter API URL (default: `http://host.docker.internal:8095`) |
 
 ## Workflow Management
 
@@ -45,10 +51,10 @@ Workflows are edited in the n8n UI and version-controlled as JSON exports.
 ## Architecture
 
 ```
-Schedule (every 2h)
+Schedule (every 15 min)
   → Fetch (RSS / HTTP scrape)
   → Parse & normalize
-  → POST /api/jobs/ingest → Job Hunter API
+  → POST /jobs/ingest → Job Hunter API
 ```
 
 Each workflow produces a normalized JSON payload:

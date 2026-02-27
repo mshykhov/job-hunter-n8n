@@ -1,6 +1,6 @@
 # job-hunter-n8n
 
-**TL;DR:** n8n scraping workflows for [Job Hunter](https://github.com/mshykhov/job-hunter). Collects vacancies from DOU, Djinni, Adzuna and sends them to the API via REST.
+**TL;DR:** n8n scraping workflows for [Job Hunter](https://github.com/mshykhov/job-hunter). Collects vacancies from job platforms (DOU, Djinni, LinkedIn, Google Jobs) and sends them to the API via REST.
 
 > **Stack**: n8n 2.10 (Community), PostgreSQL 16, Docker Compose
 
@@ -54,6 +54,10 @@ job-hunter-n8n/
 ├── .env.example
 ├── docs/
 │   └── workflows/          # Workflow design docs (source of truth)
+├── scripts/
+│   ├── export.sh           # Export workflows from n8n to JSON
+│   └── import.sh           # Import workflows from JSON to n8n
+├── workflows/              # Workflow JSON exports (version-controlled)
 ├── CLAUDE.md
 └── README.md
 ```

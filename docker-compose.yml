@@ -49,7 +49,7 @@ services:
         condition: service_healthy
 
   job-spy-api:
-    image: ${JOB_SPY_API_IMAGE:-shykhovmyron/job-spy-api:latest}
+    image: ${JOB_SPY_API_IMAGE:-shykhovmyron/job-spy-api:0.3.3}
     container_name: job-spy-api
     restart: unless-stopped
     ports:
