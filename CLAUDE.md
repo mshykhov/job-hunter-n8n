@@ -65,14 +65,17 @@ job-hunter-n8n/
 ### Workflow Conventions
 - One platform = one scraper workflow
 - Shared sub-workflows for reusable operations (folder: Shared, tag: `shared`)
-- Scraper workflows in folder: Scrapers
+- Scraper workflows in folder: Scrapers, tagged with `scraper` + platform name (e.g., `dou`, `linkedin`)
 - Schedule Trigger: every 15 minutes
 - Output: normalized JSON with job data
 - **Sub-workflows handle their own error logging** — Format Error → Telegram Notify → Throw
 - **Scraper only logs its own direct HTTP errors** (e.g., RSS fetch)
-- **Telegram Notify** — shared sub-workflow, input: `{level: "error"|"warn"|"info", message: "text"}`
-- **Send Jobs** — shared sub-workflow, handles has-jobs check + POST + all logging
-- **Get Criteria** — shared sub-workflow, handles GET + error logging
+- **All shared sub-workflows receive `source` parameter** — identifies calling workflow (e.g., `"dou"`, `"linkedin"`)
+- **Telegram Notify** — shared sub-workflow, input: `{level: "error"|"warn"|"info", message: "text", source: "platform"}`
+- **Send Jobs** — shared sub-workflow, input: `{body: [...], count: N, source: "platform"}`, handles has-jobs check + POST + all logging
+- **Get Criteria** — shared sub-workflow, input: `{source: "platform"}`, handles GET + error logging
+- **Get Proxies** — shared sub-workflow, fetches proxy from API, handles error logging
+- **Check URLs** — shared sub-workflow, input: `{urls: [...], source: "platform"}`, validates URL accessibility
 
 ### Deployment
 - Local: `docker compose up -d`
