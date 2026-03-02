@@ -5,6 +5,7 @@ on:
     paths:
       - 'workflows/**'
     branches: [master]
+  workflow_dispatch:
 
 jobs:
   deploy:
