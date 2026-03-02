@@ -28,33 +28,33 @@ jobs:
             ID=$(basename "$file" .json)
             echo "Deploying workflow $ID..."
 
-            # Get current prod status to preserve active state
-            PROD_ACTIVE=$(curl -s -H "X-N8N-API-KEY: $N8N_KEY" \
-              "$N8N_URL/api/v1/workflows/$ID" | jq -r '.active // empty')
+            # Try PUT first (update existing workflow)
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT \
+              "$N8N_URL/api/v1/workflows/$ID" \
+              -H "X-N8N-API-KEY: $N8N_KEY" \
+              -H "Content-Type: application/json" \
+              -d @"$file")
+            STATUS=$(echo "$RESPONSE" | tail -1)
 
-            if [ -n "$PROD_ACTIVE" ]; then
-              # Workflow exists — preserve prod active status, then PUT
-              PAYLOAD=$(jq --argjson active "$PROD_ACTIVE" '.active = $active' "$file")
-              STATUS=$(echo "$PAYLOAD" | curl -s -o /dev/null -w "%{http_code}" -X PUT \
-                "$N8N_URL/api/v1/workflows/$ID" \
-                -H "X-N8N-API-KEY: $N8N_KEY" \
-                -H "Content-Type: application/json" \
-                -d @-)
-              echo "  PUT (active=$PROD_ACTIVE) -> HTTP $STATUS"
-            else
-              # New workflow — POST
-              STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            if [ "$STATUS" -eq 404 ]; then
+              # Workflow doesn't exist on prod — create via POST (strip id)
+              echo "  Not found on prod, creating..."
+              RESPONSE=$(jq 'del(.id)' "$file" | curl -s -w "\n%{http_code}" -X POST \
                 "$N8N_URL/api/v1/workflows" \
                 -H "X-N8N-API-KEY: $N8N_KEY" \
                 -H "Content-Type: application/json" \
-                -d @"$file")
-              echo "  POST (new) -> HTTP $STATUS"
+                -d @-)
+              STATUS=$(echo "$RESPONSE" | tail -1)
+              echo "  POST -> HTTP $STATUS"
+            else
+              echo "  PUT -> HTTP $STATUS"
             fi
 
             if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 300 ]; then
               echo "  deployed"
             else
-              echo "  FAILED"
+              BODY=$(echo "$RESPONSE" | sed '$d')
+              echo "  FAILED: $BODY"
               FAILED=1
             fi
           done
