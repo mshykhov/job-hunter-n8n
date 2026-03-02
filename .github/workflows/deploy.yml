@@ -28,21 +28,40 @@ jobs:
           AUTH=(-H "X-N8N-API-KEY: $N8N_KEY")
           CT=(-H "Content-Type: application/json")
 
-          # --- Step 1: Ensure all tags exist on prod, build name->id map ---
+          # --- Step 1: Build local-name->prod-id and local-id->prod-id maps ---
+          echo "=== Building workflow ID map ==="
+          declare -A NAME_TO_PROD_ID
+          declare -A LOCAL_TO_PROD_ID
+
+          PROD_WORKFLOWS=$(curl -s "${AUTH[@]}" "$API/workflows?limit=200")
+          while IFS='|' read -r PNAME PID; do
+            [ -z "$PNAME" ] && continue
+            NAME_TO_PROD_ID["$PNAME"]=$PID
+          done < <(echo "$PROD_WORKFLOWS" | jq -r '.data[] | "\(.name)|\(.id)"')
+
+          for file in workflows/*.json; do
+            LOCAL_ID=$(basename "$file" .json)
+            WNAME=$(jq -r '.name' "$file")
+            if [ -n "${NAME_TO_PROD_ID[$WNAME]}" ]; then
+              LOCAL_TO_PROD_ID[$LOCAL_ID]=${NAME_TO_PROD_ID[$WNAME]}
+              echo "  $WNAME: $LOCAL_ID -> ${NAME_TO_PROD_ID[$WNAME]}"
+            else
+              echo "  $WNAME: new workflow"
+            fi
+          done
+
+          # --- Step 2: Ensure all tags exist on prod ---
+          echo ""
           echo "=== Syncing tags ==="
           declare -A TAG_MAP
 
-          # Collect all unique tag names from workflow JSONs
           ALL_TAGS=$(jq -r '.tags[]?.name // empty' workflows/*.json | sort -u)
-
-          # Get existing tags from prod
           PROD_TAGS=$(curl -s "${AUTH[@]}" "$API/tags?limit=100")
 
           for tag_name in $ALL_TAGS; do
-            # Check if tag exists on prod
-            TAG_ID=$(echo "$PROD_TAGS" | jq -r --arg n "$tag_name" '.data[]? | select(.name == $n) | .id // empty')
+            TAG_ID=$(echo "$PROD_TAGS" | jq -r --arg n "$tag_name" \
+              '.data[]? | select(.name == $n) | .id // empty')
             if [ -z "$TAG_ID" ]; then
-              # Create tag
               TAG_ID=$(curl -s "${AUTH[@]}" "${CT[@]}" -X POST "$API/tags" \
                 -d "{\"name\": \"$tag_name\"}" | jq -r '.id')
               echo "  Created tag: $tag_name ($TAG_ID)"
@@ -52,11 +71,11 @@ jobs:
             TAG_MAP[$tag_name]=$TAG_ID
           done
 
-          # --- Step 2: Deploy workflows ---
+          # --- Step 3: Deploy workflows ---
           echo ""
           echo "=== Deploying workflows ==="
 
-          # Fields accepted by n8n REST API PUT (active and tags are read-only)
+          # Fields accepted by n8n REST API (active and tags are read-only)
           FILTER='{
             name, nodes, connections, staticData,
             settings: (.settings // {} | {
@@ -67,28 +86,51 @@ jobs:
             } | with_entries(select(.value != null)))
           }'
 
+          # Build JSON map for sub-workflow ID remapping (local ID -> prod ID)
+          ID_MAP_JSON="{"
+          FIRST=true
+          for lid in "${!LOCAL_TO_PROD_ID[@]}"; do
+            $FIRST || ID_MAP_JSON+=","
+            ID_MAP_JSON+="\"$lid\":\"${LOCAL_TO_PROD_ID[$lid]}\""
+            FIRST=false
+          done
+          ID_MAP_JSON+="}"
+
           FAILED=0
           for file in workflows/*.json; do
-            ID=$(basename "$file" .json)
+            LOCAL_ID=$(basename "$file" .json)
             NAME=$(jq -r '.name' "$file")
             ACTIVE=$(jq -r '.active' "$file")
-            echo "Deploying: $NAME ($ID)..."
+            PROD_ID=${NAME_TO_PROD_ID[$NAME]:-}
 
-            PAYLOAD=$(jq "$FILTER" "$file")
+            echo "Deploying: $NAME..."
 
-            # Try PUT first (update existing workflow)
-            RESPONSE=$(echo "$PAYLOAD" | curl -s -w "\n%{http_code}" -X PUT \
-              "$API/workflows/$ID" "${AUTH[@]}" "${CT[@]}" -d @-)
-            STATUS=$(echo "$RESPONSE" | tail -1)
+            # Filter to API-accepted fields and remap sub-workflow IDs
+            PAYLOAD=$(jq --argjson idmap "$ID_MAP_JSON" "
+              $FILTER |
+              .nodes = [.nodes[] | if .parameters.workflowId?.value? then
+                .parameters.workflowId.value = (\$idmap[.parameters.workflowId.value] // .parameters.workflowId.value)
+              else . end]
+            " "$file")
 
-            if [ "$STATUS" -eq 404 ]; then
+            if [ -n "$PROD_ID" ]; then
+              # Update existing workflow
+              RESPONSE=$(echo "$PAYLOAD" | curl -s -w "\n%{http_code}" -X PUT \
+                "$API/workflows/$PROD_ID" "${AUTH[@]}" "${CT[@]}" -d @-)
+              STATUS=$(echo "$RESPONSE" | tail -1)
+              echo "  PUT $PROD_ID -> HTTP $STATUS"
+            else
               # New workflow — POST
               RESPONSE=$(echo "$PAYLOAD" | curl -s -w "\n%{http_code}" -X POST \
                 "$API/workflows" "${AUTH[@]}" "${CT[@]}" -d @-)
               STATUS=$(echo "$RESPONSE" | tail -1)
-              echo "  POST -> HTTP $STATUS"
-            else
-              echo "  PUT -> HTTP $STATUS"
+              BODY=$(echo "$RESPONSE" | sed '$d')
+              PROD_ID=$(echo "$BODY" | jq -r '.id // empty')
+              if [ -n "$PROD_ID" ]; then
+                NAME_TO_PROD_ID[$NAME]=$PROD_ID
+                LOCAL_TO_PROD_ID[$LOCAL_ID]=$PROD_ID
+              fi
+              echo "  POST -> HTTP $STATUS (id: $PROD_ID)"
             fi
 
             if [ "$STATUS" -lt 200 ] || [ "$STATUS" -ge 300 ]; then
@@ -98,7 +140,7 @@ jobs:
               continue
             fi
 
-            # --- Step 3: Sync tags for this workflow ---
+            # --- Sync tags ---
             WORKFLOW_TAGS=$(jq -r '.tags[]?.name // empty' "$file")
             if [ -n "$WORKFLOW_TAGS" ]; then
               TAG_IDS="["
@@ -113,14 +155,14 @@ jobs:
               done
               TAG_IDS+="]"
 
-              curl -s -o /dev/null -w "" -X PUT "$API/workflows/$ID/tags" \
+              curl -s -o /dev/null -w "" -X PUT "$API/workflows/$PROD_ID/tags" \
                 "${AUTH[@]}" "${CT[@]}" -d "$TAG_IDS"
               echo "  tags: $WORKFLOW_TAGS"
             fi
 
-            # --- Step 4: Activate if was active locally ---
+            # --- Activate if was active locally ---
             if [ "$ACTIVE" = "true" ]; then
-              curl -s -o /dev/null -X POST "$API/workflows/$ID/activate" "${AUTH[@]}"
+              curl -s -o /dev/null -X POST "$API/workflows/$PROD_ID/activate" "${AUTH[@]}"
               echo "  activated"
             fi
 
