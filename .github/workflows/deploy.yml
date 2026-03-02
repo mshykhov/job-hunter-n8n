@@ -23,15 +23,24 @@ jobs:
           N8N_URL: ${{ secrets.N8N_API_URL }}
           N8N_KEY: ${{ secrets.N8N_API_KEY }}
         run: |
-          # Fields accepted by n8n REST API (active is read-only, managed via /activate endpoint)
-          API_FIELDS='{name, nodes, connections, settings, staticData, tags}'
+          # Strip to API-accepted fields only (active, tags, id are read-only)
+          # Settings: strip non-schema fields like binaryMode
+          FILTER='{
+            name, nodes, connections, staticData,
+            settings: (.settings // {} | {
+              executionOrder, timezone, callerPolicy, callerIds,
+              availableInMCP, saveExecutionProgress, saveManualExecutions,
+              saveDataErrorExecution, saveDataSuccessExecution,
+              executionTimeout, errorWorkflow, timeSavedPerExecution
+            } | with_entries(select(.value != null)))
+          }'
 
           FAILED=0
           for file in workflows/*.json; do
             ID=$(basename "$file" .json)
             echo "Deploying workflow $ID..."
 
-            PAYLOAD=$(jq "$API_FIELDS" "$file")
+            PAYLOAD=$(jq "$FILTER" "$file")
 
             # Try PUT first (update existing workflow)
             RESPONSE=$(echo "$PAYLOAD" | curl -s -w "\n%{http_code}" -X PUT \
