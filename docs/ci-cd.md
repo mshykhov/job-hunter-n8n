@@ -40,60 +40,18 @@ Export workflow JSON
 | Tailscale OAuth client | [Tailscale Admin](https://login.tailscale.com/admin/settings/oauth) | GHA runner joins tailnet |
 | `TS_OAUTH_CLIENT_ID` | GitHub Secrets | Tailscale auth |
 | `TS_OAUTH_SECRET` | GitHub Secrets | Tailscale auth |
-| `N8N_API_URL` | GitHub Secrets | Prod n8n base URL (e.g., `http://n8n.tailnet:5678`) |
+| `N8N_API_URL` | GitHub Secrets | Prod n8n base URL (e.g., `https://job-hunt-n8n-prd.trout-paradise.ts.net`) |
 | `N8N_API_KEY` | GitHub Secrets | n8n API authentication |
 | ACL tag `tag:ci` | Tailscale ACL | Allow GHA runner to reach n8n |
 
 ## GitHub Actions Workflow
 
-**File:** `.github/workflows/deploy-n8n.yml` (in monorepo root)
+**File:** `.github/workflows/deploy.yml` (in job-hunter-n8n repo)
 
-```yaml
-name: Deploy n8n workflows
-
-on:
-  push:
-    paths:
-      - 'n8n/workflows/**'
-    branches: [master]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - uses: tailscale/github-action@v3
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
-
-      - name: Deploy workflows to prod n8n
-        env:
-          N8N_URL: ${{ secrets.N8N_API_URL }}
-          N8N_KEY: ${{ secrets.N8N_API_KEY }}
-        run: |
-          for file in n8n/workflows/*.json; do
-            ID=$(basename "$file" .json)
-            echo "Deploying workflow $ID..."
-
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
-              "$N8N_URL/api/v1/workflows/$ID" \
-              -H "X-N8N-API-KEY: $N8N_KEY" \
-              -H "Content-Type: application/json" \
-              -d @"$file")
-
-            if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 300 ]; then
-              echo "  ✓ deployed (HTTP $STATUS)"
-            else
-              echo "  ✗ failed (HTTP $STATUS)"
-              exit 1
-            fi
-          done
-```
+See the actual file for implementation. Key features:
+- Preserves prod `active` status (GET before PUT) to avoid re-activating deactivated workflows
+- Handles new workflows via POST (falls back from PUT when workflow doesn't exist on prod)
+- Fails the pipeline if any workflow deployment fails
 
 ## Workflow File Convention
 
@@ -121,13 +79,27 @@ Add to Tailscale ACL policy:
     {
       "action": "accept",
       "src": ["tag:ci"],
-      "dst": ["tag:k8s:5678"]
+      "dst": ["tag:k8s:443"]
     }
   ]
 }
 ```
 
-Adjust `dst` to match your prod n8n node/tag.
+`tag:k8s` is the tag on the `ingress-proxies` ProxyGroup. Port 443 because
+Tailscale Ingress terminates TLS (n8n ClusterIP:5678 is internal only).
+
+## API Behavior: Auto-Publish on PUT
+
+Exported JSON contains `"active": true` for all running workflows. When the pipeline does
+`PUT /api/v1/workflows/{id}` with this JSON:
+
+- Workflow nodes, connections, and settings are **replaced immediately**
+- `active: true` is preserved — triggers re-register with updated logic
+- Changes are **live instantly** (no separate "publish" step via API)
+
+**Caveat:** If a workflow was manually deactivated on prod (e.g., for debugging), the deploy
+will **re-activate it** because the JSON has `"active": true`. To avoid this, the deploy script
+should GET the current prod status first and preserve the original `active` value during PUT.
 
 ## Limitations
 
@@ -135,12 +107,14 @@ Adjust `dst` to match your prod n8n node/tag.
 - **No diff preview** — deploys all changed files. Review changes in PR before merge
 - **Credentials not synced** — managed separately per environment
 - **New workflows** — if a workflow ID doesn't exist in prod, the PUT will fail. Create it manually first or use POST for new IDs
+- **Active status override** — see "Auto-Publish on PUT" section above
 
 ## TODO
 
-- [ ] Configure Tailscale OAuth client
-- [ ] Add GitHub Secrets to monorepo
-- [ ] Create n8n API key on prod
-- [ ] Set up Tailscale ACL for `tag:ci`
-- [ ] Create and test `.github/workflows/deploy-n8n.yml`
-- [ ] Handle new workflow creation (POST vs PUT logic)
+- [x] Configure Tailscale OAuth client
+- [x] Add GitHub Secrets to job-hunter-n8n repo
+- [x] Create n8n API key on prod
+- [x] Set up Tailscale ACL for `tag:ci`
+- [x] Create `.github/workflows/deploy.yml`
+- [x] Handle new workflow creation (POST vs PUT logic)
+- [ ] Test end-to-end deployment
