@@ -24,8 +24,39 @@ jobs:
           N8N_URL: ${{ secrets.N8N_API_URL }}
           N8N_KEY: ${{ secrets.N8N_API_KEY }}
         run: |
-          # Strip to API-accepted fields only (active, tags, id are read-only)
-          # Settings: strip non-schema fields like binaryMode
+          API="$N8N_URL/api/v1"
+          AUTH=(-H "X-N8N-API-KEY: $N8N_KEY")
+          CT=(-H "Content-Type: application/json")
+
+          # --- Step 1: Ensure all tags exist on prod, build name->id map ---
+          echo "=== Syncing tags ==="
+          declare -A TAG_MAP
+
+          # Collect all unique tag names from workflow JSONs
+          ALL_TAGS=$(jq -r '.tags[]?.name // empty' workflows/*.json | sort -u)
+
+          # Get existing tags from prod
+          PROD_TAGS=$(curl -s "${AUTH[@]}" "$API/tags?limit=100")
+
+          for tag_name in $ALL_TAGS; do
+            # Check if tag exists on prod
+            TAG_ID=$(echo "$PROD_TAGS" | jq -r --arg n "$tag_name" '.data[]? | select(.name == $n) | .id // empty')
+            if [ -z "$TAG_ID" ]; then
+              # Create tag
+              TAG_ID=$(curl -s "${AUTH[@]}" "${CT[@]}" -X POST "$API/tags" \
+                -d "{\"name\": \"$tag_name\"}" | jq -r '.id')
+              echo "  Created tag: $tag_name ($TAG_ID)"
+            else
+              echo "  Exists: $tag_name ($TAG_ID)"
+            fi
+            TAG_MAP[$tag_name]=$TAG_ID
+          done
+
+          # --- Step 2: Deploy workflows ---
+          echo ""
+          echo "=== Deploying workflows ==="
+
+          # Fields accepted by n8n REST API PUT (active and tags are read-only)
           FILTER='{
             name, nodes, connections, staticData,
             settings: (.settings // {} | {
@@ -39,39 +70,61 @@ jobs:
           FAILED=0
           for file in workflows/*.json; do
             ID=$(basename "$file" .json)
-            echo "Deploying workflow $ID..."
+            NAME=$(jq -r '.name' "$file")
+            ACTIVE=$(jq -r '.active' "$file")
+            echo "Deploying: $NAME ($ID)..."
 
             PAYLOAD=$(jq "$FILTER" "$file")
 
             # Try PUT first (update existing workflow)
             RESPONSE=$(echo "$PAYLOAD" | curl -s -w "\n%{http_code}" -X PUT \
-              "$N8N_URL/api/v1/workflows/$ID" \
-              -H "X-N8N-API-KEY: $N8N_KEY" \
-              -H "Content-Type: application/json" \
-              -d @-)
+              "$API/workflows/$ID" "${AUTH[@]}" "${CT[@]}" -d @-)
             STATUS=$(echo "$RESPONSE" | tail -1)
 
             if [ "$STATUS" -eq 404 ]; then
-              # Workflow doesn't exist on prod — create via POST
-              echo "  Not found on prod, creating..."
+              # New workflow — POST
               RESPONSE=$(echo "$PAYLOAD" | curl -s -w "\n%{http_code}" -X POST \
-                "$N8N_URL/api/v1/workflows" \
-                -H "X-N8N-API-KEY: $N8N_KEY" \
-                -H "Content-Type: application/json" \
-                -d @-)
+                "$API/workflows" "${AUTH[@]}" "${CT[@]}" -d @-)
               STATUS=$(echo "$RESPONSE" | tail -1)
               echo "  POST -> HTTP $STATUS"
             else
               echo "  PUT -> HTTP $STATUS"
             fi
 
-            if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 300 ]; then
-              echo "  deployed"
-            else
+            if [ "$STATUS" -lt 200 ] || [ "$STATUS" -ge 300 ]; then
               BODY=$(echo "$RESPONSE" | sed '$d')
               echo "  FAILED: $BODY"
               FAILED=1
+              continue
             fi
+
+            # --- Step 3: Sync tags for this workflow ---
+            WORKFLOW_TAGS=$(jq -r '.tags[]?.name // empty' "$file")
+            if [ -n "$WORKFLOW_TAGS" ]; then
+              TAG_IDS="["
+              FIRST=true
+              for t in $WORKFLOW_TAGS; do
+                TID=${TAG_MAP[$t]}
+                if [ -n "$TID" ]; then
+                  $FIRST || TAG_IDS+=","
+                  TAG_IDS+="{\"id\":\"$TID\"}"
+                  FIRST=false
+                fi
+              done
+              TAG_IDS+="]"
+
+              curl -s -o /dev/null -w "" -X PUT "$API/workflows/$ID/tags" \
+                "${AUTH[@]}" "${CT[@]}" -d "$TAG_IDS"
+              echo "  tags: $WORKFLOW_TAGS"
+            fi
+
+            # --- Step 4: Activate if was active locally ---
+            if [ "$ACTIVE" = "true" ]; then
+              curl -s -o /dev/null -X POST "$API/workflows/$ID/activate" "${AUTH[@]}"
+              echo "  activated"
+            fi
+
+            echo "  deployed"
           done
 
           if [ "$FAILED" -eq 1 ]; then
