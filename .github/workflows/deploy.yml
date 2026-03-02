@@ -23,23 +23,28 @@ jobs:
           N8N_URL: ${{ secrets.N8N_API_URL }}
           N8N_KEY: ${{ secrets.N8N_API_KEY }}
         run: |
+          # Fields accepted by n8n REST API
+          API_FIELDS='{name, nodes, connections, settings, staticData, active, tags}'
+
           FAILED=0
           for file in workflows/*.json; do
             ID=$(basename "$file" .json)
             echo "Deploying workflow $ID..."
 
+            PAYLOAD=$(jq "$API_FIELDS" "$file")
+
             # Try PUT first (update existing workflow)
-            RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT \
+            RESPONSE=$(echo "$PAYLOAD" | curl -s -w "\n%{http_code}" -X PUT \
               "$N8N_URL/api/v1/workflows/$ID" \
               -H "X-N8N-API-KEY: $N8N_KEY" \
               -H "Content-Type: application/json" \
-              -d @"$file")
+              -d @-)
             STATUS=$(echo "$RESPONSE" | tail -1)
 
             if [ "$STATUS" -eq 404 ]; then
-              # Workflow doesn't exist on prod — create via POST (strip id)
+              # Workflow doesn't exist on prod — create via POST
               echo "  Not found on prod, creating..."
-              RESPONSE=$(jq 'del(.id)' "$file" | curl -s -w "\n%{http_code}" -X POST \
+              RESPONSE=$(echo "$PAYLOAD" | curl -s -w "\n%{http_code}" -X POST \
                 "$N8N_URL/api/v1/workflows" \
                 -H "X-N8N-API-KEY: $N8N_KEY" \
                 -H "Content-Type: application/json" \
