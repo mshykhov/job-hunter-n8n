@@ -49,8 +49,11 @@ Export workflow JSON
 **File:** `.github/workflows/deploy.yml` (in job-hunter-n8n repo)
 
 See the actual file for implementation. Key features:
-- Preserves prod `active` status (GET before PUT) to avoid re-activating deactivated workflows
-- Handles new workflows via POST (falls back from PUT when workflow doesn't exist on prod)
+- Matches workflows by **name** (not file ID) — handles local/prod ID mismatch
+- Remaps sub-workflow references (`executeWorkflow` node IDs) from local to prod
+- Syncs tags: creates missing tags on prod, assigns to workflows
+- Handles new workflows via POST, existing via PUT
+- Activates workflows that were active locally
 - Fails the pipeline if any workflow deployment fails
 
 ## Workflow File Convention
@@ -101,13 +104,26 @@ Exported JSON contains `"active": true` for all running workflows. When the pipe
 will **re-activate it** because the JSON has `"active": true`. To avoid this, the deploy script
 should GET the current prod status first and preserve the original `active` value during PUT.
 
+## ID Remapping
+
+Local and prod n8n instances assign different IDs to the same workflows. The pipeline handles
+this automatically:
+
+1. **Matches by name** — fetches all prod workflows, builds a `name → prod_id` map
+2. **Remaps sub-workflow references** — `executeWorkflow` nodes reference sub-workflows by ID.
+   The pipeline replaces local IDs with prod IDs in the payload before deploying
+3. **New workflows** — if no matching name found on prod, creates via POST and captures the new ID
+
+Workflow JSON filenames can use either local or prod IDs — the pipeline ignores filenames and
+relies entirely on the `name` field for matching.
+
 ## Limitations
 
 - **One-way sync** — dev → prod only. No pull-back from prod
 - **No diff preview** — deploys all changed files. Review changes in PR before merge
 - **Credentials not synced** — managed separately per environment
-- **New workflows** — if a workflow ID doesn't exist in prod, the PUT will fail. Create it manually first or use POST for new IDs
 - **Active status override** — see "Auto-Publish on PUT" section above
+- **Name-based matching** — workflows are matched by name, so names must be unique
 
 ## TODO
 
@@ -117,4 +133,4 @@ should GET the current prod status first and preserve the original `active` valu
 - [x] Set up Tailscale ACL for `tag:ci`
 - [x] Create `.github/workflows/deploy.yml`
 - [x] Handle new workflow creation (POST vs PUT logic)
-- [ ] Test end-to-end deployment
+- [x] Test end-to-end deployment
