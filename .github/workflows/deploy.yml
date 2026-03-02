@@ -23,8 +23,8 @@ jobs:
           N8N_URL: ${{ secrets.N8N_API_URL }}
           N8N_KEY: ${{ secrets.N8N_API_KEY }}
         run: |
-          # Fields accepted by n8n REST API
-          API_FIELDS='{name, nodes, connections, settings, staticData, active, tags}'
+          # Fields accepted by n8n REST API (active is read-only, managed via /activate endpoint)
+          API_FIELDS='{name, nodes, connections, settings, staticData, tags}'
 
           FAILED=0
           for file in workflows/*.json; do
