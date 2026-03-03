@@ -26,11 +26,13 @@ kv_to_json() { jq -Rn '[inputs | split("\t") | {(.[0]): .[1]}] | add // {}'; }
 # --- Map workflow names to prod IDs ---
 echo "=== Mapping workflow IDs ==="
 declare -A PROD_ID
+declare -A PROD_ACTIVE
 declare -A LOCAL_TO_PROD
 
-while IFS=$'\t' read -r name id; do
+while IFS=$'\t' read -r name id active; do
   PROD_ID["$name"]=$id
-done < <(api "$API/workflows?limit=200" | jq -r '.data[] | [.name, .id] | @tsv')
+  PROD_ACTIVE["$name"]=$active
+done < <(api "$API/workflows?limit=200" | jq -r '.data[] | [.name, .id, (.active|tostring)] | @tsv')
 
 for f in workflows/*.json; do
   lid=$(basename "$f" .json)
@@ -100,8 +102,13 @@ for f in workflows/*.json; do
     '[.tags[]?.name // empty | {id: $tm[.]}] | map(select(.id))' "$f")
   [ "$tags" != "[]" ] && api -X PUT "$API/workflows/$pid/tags" -d "$tags" > /dev/null
 
-  # Activate if was active locally
-  [ "$active" = "true" ] && api -X POST "$API/workflows/$pid/activate" > /dev/null && echo "  activated"
+  # Sync active state
+  prod_active=${PROD_ACTIVE[$name]:-false}
+  if [ "$active" = "true" ] && [ "$prod_active" != "true" ]; then
+    api -X POST "$API/workflows/$pid/activate" > /dev/null && echo "  activated"
+  elif [ "$active" = "false" ] && [ "$prod_active" = "true" ]; then
+    api -X POST "$API/workflows/$pid/deactivate" > /dev/null && echo "  deactivated"
+  fi
 done
 
 [ "$failed" -eq 1 ] && exit 1
