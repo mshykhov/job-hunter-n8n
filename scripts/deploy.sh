@@ -1,6 +1,6 @@
 #!/bin/bash
 # Deploy n8n workflows to production via REST API.
-# Matches by name (not file ID), remaps sub-workflow references, syncs tags.
+# Matches by name (not file ID), remaps sub-workflow and credential references, syncs tags.
 #
 # Required env: N8N_URL, N8N_KEY
 set -euo pipefail
@@ -48,6 +48,27 @@ done
 
 REMAP=$(for k in "${!LOCAL_TO_PROD[@]}"; do printf '%s\t%s\n' "$k" "${LOCAL_TO_PROD[$k]}"; done | kv_to_json)
 
+# --- Map credential names to prod IDs ---
+echo -e "\n=== Mapping credential IDs ==="
+declare -A CRED_ID
+
+while IFS=$'\t' read -r name id; do
+  CRED_ID["$name"]=$id
+  echo "  $name: $id"
+done < <(api "$API/credentials?limit=200" | jq -r '.data[] | [.name, .id] | @tsv')
+
+# Build local credential ID -> prod ID map from workflow files
+declare -A CRED_REMAP
+for f in workflows/*.json; do
+  while IFS=$'\t' read -r lid cname; do
+    pid=${CRED_ID[$cname]:-}
+    [ -n "$pid" ] && [ "$lid" != "$pid" ] && CRED_REMAP[$lid]=$pid
+  done < <(jq -r '[.nodes[].credentials // {} | to_entries[]] | unique_by(.value.id) | .[] | [.value.id, .value.name] | @tsv' "$f")
+done
+
+CRED_MAP=$(for k in "${!CRED_REMAP[@]}"; do printf '%s\t%s\n' "$k" "${CRED_REMAP[$k]}"; done | kv_to_json)
+for k in "${!CRED_REMAP[@]}"; do echo "  remap: $k -> ${CRED_REMAP[$k]}"; done
+
 # --- Sync tags ---
 echo -e "\n=== Syncing tags ==="
 declare -A TAG_ID
@@ -76,11 +97,16 @@ for f in workflows/*.json; do
   active=$(jq -r '.active' "$f")
   pid=${PROD_ID[$name]:-}
 
-  # Filter to API fields + remap sub-workflow IDs (local -> prod)
-  payload=$(jq --argjson remap "$REMAP" "$FILTER |
-    .nodes |= [.[] | if .parameters.workflowId?.value? then
-      .parameters.workflowId.value = (\$remap[.parameters.workflowId.value] // .parameters.workflowId.value)
-    else . end]" "$f")
+  # Filter to API fields + remap sub-workflow and credential IDs (local -> prod)
+  payload=$(jq --argjson remap "$REMAP" --argjson cremap "$CRED_MAP" "$FILTER |
+    .nodes |= [.[] |
+      if .parameters.workflowId?.value? then
+        .parameters.workflowId.value = (\$remap[.parameters.workflowId.value] // .parameters.workflowId.value)
+      else . end |
+      if .credentials then
+        .credentials |= with_entries(.value.id = (\$cremap[.value.id] // .value.id))
+      else . end
+    ]" "$f")
 
   if [ -n "$pid" ]; then
     if ! echo "$payload" | api -f -X PUT "$API/workflows/$pid" -d @- > /dev/null; then
