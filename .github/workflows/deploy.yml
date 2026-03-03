@@ -22,4 +22,5 @@ jobs:
         env:
           N8N_URL: ${{ secrets.N8N_API_URL }}
           N8N_KEY: ${{ secrets.N8N_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         run: bash scripts/deploy.sh
