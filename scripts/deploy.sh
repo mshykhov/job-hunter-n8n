@@ -2,8 +2,7 @@
 # Deploy n8n workflows to production via REST API.
 # Matches by name (not file ID), remaps sub-workflow and credential references, syncs tags.
 #
-# Required env: N8N_URL, N8N_KEY
-# Optional env: TELEGRAM_BOT_TOKEN (syncs Telegram credential)
+# Required env: N8N_URL, N8N_KEY, TELEGRAM_BOT_TOKEN
 set -euo pipefail
 
 API="$N8N_URL/api/v1"
@@ -57,19 +56,15 @@ while IFS=$'\t' read -r name id; do
   CRED_ID["$name"]=$id
 done < <(api "$API/credentials?limit=200" | jq -r '.data[] | [.name, .id] | @tsv')
 
-# Sync Telegram Bot credential if token provided
-if [ -n "${TELEGRAM_BOT_TOKEN:-}" ]; then
-  cred_data='{"name":"Telegram Bot","type":"telegramApi","data":{"accessToken":"'"$TELEGRAM_BOT_TOKEN"'","baseUrl":"https://api.telegram.org"}}'
-  if [ -n "${CRED_ID["Telegram Bot"]:-}" ]; then
-    api -X PATCH "$API/credentials/${CRED_ID["Telegram Bot"]}" -d "$cred_data" > /dev/null
-    echo "  Telegram Bot: updated (${CRED_ID["Telegram Bot"]})"
-  else
-    cid=$(api -X POST "$API/credentials" -d "$cred_data" | jq -r '.id')
-    CRED_ID["Telegram Bot"]=$cid
-    echo "  Telegram Bot: created ($cid)"
-  fi
+# Sync Telegram Bot credential
+cred_data='{"name":"Telegram Bot","type":"telegramApi","data":{"accessToken":"'"$TELEGRAM_BOT_TOKEN"'","baseUrl":"https://api.telegram.org"}}'
+if [ -n "${CRED_ID["Telegram Bot"]:-}" ]; then
+  api -X PATCH "$API/credentials/${CRED_ID["Telegram Bot"]}" -d "$cred_data" > /dev/null
+  echo "  Telegram Bot: updated (${CRED_ID["Telegram Bot"]})"
 else
-  echo "  TELEGRAM_BOT_TOKEN not set, skipping credential sync"
+  cid=$(api -X POST "$API/credentials" -d "$cred_data" | jq -r '.id')
+  CRED_ID["Telegram Bot"]=$cid
+  echo "  Telegram Bot: created ($cid)"
 fi
 
 echo -e "\n=== Mapping credential IDs ==="
