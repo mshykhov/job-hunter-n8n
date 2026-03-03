@@ -18,15 +18,9 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
-      - name: Fetch secrets from Doppler
-        uses: DopplerHQ/secrets-fetch-action@v1.3.1
-        with:
-          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
-          inject-env-vars: true
-
       - name: Deploy workflows to prod n8n
         env:
-          N8N_URL: ${{ env.JOB_HUNTER_N8N_API_URL }}
-          N8N_KEY: ${{ env.JOB_HUNTER_N8N_API_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ env.JOB_HUNTER_N8N_TELEGRAM_BOT_TOKEN }}
+          N8N_URL: ${{ secrets.N8N_API_URL }}
+          N8N_KEY: ${{ secrets.N8N_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         run: bash scripts/deploy.sh
