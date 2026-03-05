@@ -15,6 +15,7 @@
 - **Meaningful commits** — conventional commits
 - **No junk** — no test/temporary workflows in master
 - **No AI mentions** in commits
+- **No Co-Authored-By** — never add Co-Authored-By or any trailer referencing Claude/AI
 
 ---
 
