@@ -77,6 +77,10 @@ job-hunter-n8n/
 - **Get Proxies** — shared sub-workflow, fetches proxy from API, handles error logging
 - **Check URLs** — shared sub-workflow, input: `{urls: [...], source: "platform"}`, validates URL accessibility
 
+### Job Hunter API
+- **API Spec (local):** http://localhost:8095/api-docs
+- Use this to check current endpoints, request/response schemas, enums (e.g., `source` values)
+
 ### Deployment
 - Local: `docker compose up -d`
 - Production: Helm chart in smhomelab/deploy, ArgoCD
