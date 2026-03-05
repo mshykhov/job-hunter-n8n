@@ -11,7 +11,7 @@ api() { curl -s -H "X-N8N-API-KEY: $N8N_KEY" -H "Content-Type: application/json"
 
 # n8n API accepted fields (active and tags are read-only)
 FILTER='{
-  name, nodes, connections, staticData,
+  name, nodes, connections,
   settings: (.settings // {} | {
     executionOrder, timezone, callerPolicy, callerIds,
     availableInMCP, saveExecutionProgress, saveManualExecutions,
@@ -26,13 +26,11 @@ kv_to_json() { jq -Rn '[inputs | split("\t") | {(.[0]): .[1]}] | add // {}'; }
 # --- Map workflow names to prod IDs ---
 echo "=== Mapping workflow IDs ==="
 declare -A PROD_ID
-declare -A PROD_ACTIVE
 declare -A LOCAL_TO_PROD
 
-while IFS=$'\t' read -r name id active; do
+while IFS=$'\t' read -r name id; do
   PROD_ID["$name"]=$id
-  PROD_ACTIVE["$name"]=$active
-done < <(api "$API/workflows?limit=200" | jq -r '.data[] | [.name, .id, (.active|tostring)] | @tsv')
+done < <(api "$API/workflows?limit=200" | jq -r '.data[] | [.name, .id] | @tsv')
 
 for f in workflows/*.json; do
   lid=$(basename "$f" .json)
@@ -106,7 +104,6 @@ failed=0
 
 for f in workflows/*.json; do
   name=$(jq -r '.name' "$f")
-  active=$(jq -r '.active' "$f")
   pid=${PROD_ID[$name]:-}
 
   # Filter to API fields + remap sub-workflow and credential IDs (local -> prod)
@@ -140,13 +137,7 @@ for f in workflows/*.json; do
     '[.tags[]?.name // empty | {id: $tm[.]}] | map(select(.id))' "$f")
   [ "$tags" != "[]" ] && api -X PUT "$API/workflows/$pid/tags" -d "$tags" > /dev/null
 
-  # Sync active state
-  prod_active=${PROD_ACTIVE[$name]:-false}
-  if [ "$active" = "true" ] && [ "$prod_active" != "true" ]; then
-    api -X POST "$API/workflows/$pid/activate" > /dev/null && echo "  activated"
-  elif [ "$active" = "false" ] && [ "$prod_active" = "true" ]; then
-    api -X POST "$API/workflows/$pid/deactivate" > /dev/null && echo "  deactivated"
-  fi
+  # Active state is managed per-environment, not synced from git
 done
 
 [ "$failed" -eq 1 ] && exit 1
