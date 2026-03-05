@@ -6,13 +6,18 @@ Scrapes remote job listings from web3.career using JSON-LD structured data (`sch
 
 ## Architecture
 
-Uses 3 shared sub-workflows (folder: Shared, tag: `shared`):
+Uses 4 shared sub-workflows (folder: Shared, tag: `shared`):
 
 | Sub-workflow | Purpose |
 |---|---|
+| **Get API Token** | Obtains OAuth2 M2M token from Auth0 (cached 10 min). |
 | **Get Criteria** | `GET /criteria?source={source}` — returns categories + remoteOnly. Logs errors to Telegram, throws on failure. |
 | **Send Jobs** | Checks count, `POST /jobs/ingest`, logs success/warn/error to Telegram. |
 | **Telegram Notify** | Routes `{level, message}` to Telegram forum topics (error/warn → alerts, info → logs). |
+
+### Proxy
+
+web3.career is behind Cloudflare. Direct requests from the server return 403. The scraper fetches a single proxy from `GET /proxies?source=web3career` with browser fingerprint headers (User-Agent, Sec-Ch-Ua, etc.) to bypass Cloudflare challenge.
 
 ## Data Strategy
 
@@ -42,20 +47,22 @@ web3.career listing pages contain ~15 separate JSON-LD `JobPosting` blocks per p
 | publishedAt | JSON-LD `datePosted` | Stable |
 | rawData | Full JSON-LD JobPosting object | — |
 
-## Flow (10 nodes)
+## Flow (11 nodes)
 
 ```
 Schedule Trigger (15 min)
   → Set Source ({source: "web3career"})
-  → Get Criteria (Execute Workflow)
+  → Get Proxy (Execute Workflow — shared)
+  → Get Criteria (Execute Workflow — shared)
   → Build Page URLs (category + remoteOnly → path URLs)
-  → Fetch Listing Pages (HTTP, text response, batch 1/2s)
+  → Fetch Listing Pages (HTTP, proxy + fingerprint headers, batch 1/2s)
       ├─ [success] → Parse Jobs (JSON-LD + URL extraction)
       │    → Prepare Ingest (aggregate + dedup by URL)
-      │    → Send Jobs (Execute Workflow)
-      └─ [error] → Format Error → Notify Error (Telegram)
+      │    → Send Jobs (Execute Workflow — shared)
+      └─ [error] → Format Error → Notify Error (Telegram — shared)
 ```
 
+- **Get Proxy** fetches single proxy + fingerprint from API, handles errors + throws to stop pipeline
 - **Get Criteria** handles its own error logging + throws to stop pipeline
 - **Send Jobs** handles has-jobs check, success/warn/error logging internally
 - Web3.career Scraper only logs **Fetch Listing Pages** errors (the only direct HTTP call)
@@ -70,13 +77,19 @@ Schedule Trigger (15 min)
 return [{json: {source: 'web3career'}}];
 ```
 
-### 3. Get Criteria (Execute Workflow)
+### 3. Get Proxy (Execute Workflow)
+- Calls shared sub-workflow `ZZIa4SqeCNNkeZDa`
+- Input: `{source: "web3career"}`
+- Output: `{source, proxyUrl, fingerprint}`
+- `onError: stopWorkflow`
+
+### 4. Get Criteria (Execute Workflow)
 - Calls shared sub-workflow `51QbvQ9rXWCQSL9Y`
 - Input: `{source: "web3career"}`
 - Output: `[{category, locations, remoteOnly}, ...]`
 - `onError: stopWorkflow`
 
-### 4. Build Page URLs
+### 5. Build Page URLs
 ```javascript
 return $input.all().map(item => {
   const cat = item.json.category.toLowerCase().replace(/\s+/g, '-');
@@ -94,14 +107,16 @@ URL examples:
 - "Kotlin" + remoteOnly → `https://web3.career/kotlin+remote-jobs`
 - "Python" + !remoteOnly → `https://web3.career/python-jobs`
 
-### 5. Fetch Listing Pages
+### 6. Fetch Listing Pages
 - HTTP Request node
 - URL: `={{ $json.url }}`
+- Proxy: `={{ $('Get Proxy').first().json.proxyUrl }}`
+- Headers: fingerprint from Get Proxy (User-Agent, Accept-Language, Sec-Ch-Ua, Sec-Ch-Ua-Mobile, Sec-Ch-Ua-Platform)
 - Response format: **text** (raw HTML)
 - Batching: 1 request / 2s interval
 - `onError: continueErrorOutput`
 
-### 6. Parse Jobs
+### 7. Parse Jobs
 Extracts JSON-LD `JobPosting` blocks and job URLs from page HTML:
 ```javascript
 const source = $('Set Source').first().json.source;
@@ -169,7 +184,7 @@ for (const inputItem of $input.all()) {
 return allJobs;
 ```
 
-### 7. Prepare Ingest
+### 8. Prepare Ingest
 ```javascript
 const source = $('Set Source').first().json.source;
 const seen = new Set();
@@ -185,11 +200,11 @@ return [{json: {body: jobs, count: jobs.length, source}}];
 ```
 Deduplicates jobs by URL (same job may appear under multiple categories).
 
-### 8. Send Jobs (Execute Workflow)
+### 9. Send Jobs (Execute Workflow)
 - Calls shared sub-workflow `3JhDuzeLD3FbIOP1`
 - `onError: stopWorkflow`
 
-### 9. Format Error
+### 10. Format Error
 ```javascript
 const err = $input.first().json;
 const source = $('Set Source').first().json.source;
@@ -197,7 +212,7 @@ const msg = err.error?.message || err.message || 'Unknown error';
 return [{json: {level: 'error', message: `${$workflow.name}: ${msg}`, source}}];
 ```
 
-### 10. Notify Error (Execute Workflow)
+### 11. Notify Error (Execute Workflow)
 - Calls shared Telegram Notify `TQShysginOAn9uQs`
 - `onError: continueRegularOutput`
 
@@ -267,6 +282,7 @@ Each category page contains ~15 separate `<script type="application/ld+json">` b
 | Salary | null | Structured (baseSalary in JSON-LD) |
 | Location | null | From JSON-LD `applicantLocationRequirements` |
 | rawData | Not sent | JSON-LD object |
+| Proxy | Not needed | Required (Cloudflare) — via Get Proxy shared sub-workflow |
 | Batching | 1 req/1s | 1 req/2s (be polite) |
 
 ## API Prerequisite
