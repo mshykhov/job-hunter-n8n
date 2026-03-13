@@ -294,7 +294,8 @@ Duration: 120s
   location: job.location,
   remote: job.is_remote ?? null,
   publishedAt: job.date_posted,
-  rawData: job                 // full search result
+  rawData: job,                // full search result
+  category: matchedCategory    // matched by title against search terms
 }
 ```
 
@@ -314,7 +315,8 @@ Duration: 120s
   rawData: {
     ...searchData.rawData,     // original search fields
     ...enriched.data           // all enriched fields
-  }
+  },
+  category: searchData.category // from Phase 1 title matching
 }
 ```
 

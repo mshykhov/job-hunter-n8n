@@ -244,6 +244,7 @@ Each listing page contains a single `<script type="application/ld+json">` block 
 | location | HTML card metadata | Countries of Europe or Ukraine |
 | remote | JSON-LD `jobLocationType` | true |
 | publishedAt | JSON-LD `datePosted` | 2026-02-24T23:01:29.697567 |
+| category | Get Criteria category used for page URL | Kotlin |
 
 ## Differences from DOU Scraper
 

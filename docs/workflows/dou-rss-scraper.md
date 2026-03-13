@@ -70,6 +70,7 @@ Available DOU filters (not used — backend filters later):
 | remote | `<title>` contains "віддалено" | true |
 | publishedAt | `<pubDate>` | Mon, 23 Feb 2026 18:06:19 +0200 |
 | rawData | Full RSS item object | `{title, link, description, pubDate, ...}` |
+| category | Get Criteria category used for RSS URL | Kotlin |
 
 ## Edge Cases
 

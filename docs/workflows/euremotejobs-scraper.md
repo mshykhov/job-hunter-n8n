@@ -221,6 +221,7 @@ Tag IDs are resolved dynamically at runtime — not hardcoded in the workflow.
 | location | `_embedded` region terms | Europe |
 | remote | Always true | true |
 | publishedAt | `date` | 2026-03-04T11:35:24 |
+| category | Matched via WP tag → Build Queries category map | Kotlin |
 
 ## API Prerequisite
 

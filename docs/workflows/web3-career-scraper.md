@@ -272,6 +272,7 @@ Each category page contains ~15 separate `<script type="application/ld+json">` b
 | remote | JSON-LD `jobLocationType` | true |
 | publishedAt | JSON-LD `datePosted` | 2026-02-24 18:53:32 +0000 |
 | rawData | Full JSON-LD `JobPosting` object | `{...}` |
+| category | Get Criteria category used for page URL | Kotlin |
 
 ## Differences from Djinni Scraper
 
