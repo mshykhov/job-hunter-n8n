@@ -1,0 +1,109 @@
+{
+  "connections": {
+    "Format Message": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Telegram",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Trigger": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Format Message",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "b2hckmdbVWlAt5zH",
+  "name": "Telegram Notify",
+  "nodes": [
+    {
+      "id": "b1000001-0000-4000-8000-000000000001",
+      "name": "Trigger",
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "level",
+              "type": "string"
+            },
+            {
+              "name": "message",
+              "type": "string"
+            },
+            {
+              "name": "source",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "position": [
+        0,
+        300
+      ],
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "b1000001-0000-4000-8000-000000000002",
+      "name": "Format Message",
+      "parameters": {
+        "jsCode": "const { level, message, source } = $input.first().json;\n\nconst VALID_LEVELS = ['error', 'warn', 'info'];\nif (!VALID_LEVELS.includes(level)) {\n  throw new Error(`Invalid level \"${level}\". Must be one of: ${VALID_LEVELS.join(', ')}`);\n}\n\nconst prefixes = { error: '\\u274c', warn: '\\u26a0\\ufe0f', info: '\\u2705' };\nconst prefix = prefixes[level];\nconst isAlert = level === 'error' || level === 'warn';\nconst topicId = isAlert\n  ? Number($env.TELEGRAM_ALERT_TOPIC_ID)\n  : Number($env.TELEGRAM_LOG_TOPIC_ID);\n\nconst sourceTag = source ? `[${source.toUpperCase()}] ` : '';\nreturn [{json: {\n  text: `${prefix} ${sourceTag}<b>${message}</b>`,\n  topicId\n}}];"
+      },
+      "position": [
+        300,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "credentials": {
+        "telegramApi": {
+          "id": "moorhkVlsNiFEHT3",
+          "name": "Telegram Bot"
+        }
+      },
+      "id": "b1000001-0000-4000-8000-000000000003",
+      "name": "Send Telegram",
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "additionalFields": {
+          "appendAttribution": false,
+          "message_thread_id": "={{ $json.topicId }}",
+          "parse_mode": "HTML"
+        },
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.text }}"
+      },
+      "position": [
+        600,
+        300
+      ],
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2
+    }
+  ],
+  "settings": {
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionOrder": "v1",
+    "timezone": "Europe/Kiev"
+  },
+  "tags": [
+    {
+      "name": "shared"
+    }
+  ]
+}

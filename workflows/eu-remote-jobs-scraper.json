@@ -1,0 +1,343 @@
+{
+  "connections": {
+    "Build Queries": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Fetch Jobs",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Fetch Jobs": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Parse & Dedup",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Format Error",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Fetch Tags": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Build Queries",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Format Error": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Notify Error",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Get Criteria": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Resolve Tags",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Parse & Dedup": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Jobs",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Resolve Tags": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Fetch Tags",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Set Source",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Set Source": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Get Criteria",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "Br5katA7fEnsQmzR",
+  "name": "EU Remote Jobs Scraper",
+  "nodes": [
+    {
+      "id": "e1000001-0000-4000-8000-000000000001",
+      "name": "Schedule Trigger",
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "position": [
+        0,
+        400
+      ],
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3
+    },
+    {
+      "id": "e1000001-0000-4000-8000-000000000002",
+      "name": "Set Source",
+      "parameters": {
+        "jsCode": "return [{json: {source: 'euremotejobs'}}];"
+      },
+      "position": [
+        224,
+        400
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "e1000001-0000-4000-8000-000000000003",
+      "name": "Get Criteria",
+      "onError": "stopWorkflow",
+      "parameters": {
+        "options": {},
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "n9daX3w5S5NvwZMe"
+        }
+      },
+      "position": [
+        448,
+        400
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "e1000001-0000-4000-8000-000000000004",
+      "name": "Resolve Tags",
+      "parameters": {
+        "jsCode": "return $input.all().map(i => ({\n  json: {\n    category: i.json.category,\n    url: `https://euremotejobs.com/wp-json/wp/v2/job_listing_tag?search=${encodeURIComponent(i.json.category)}&per_page=5`\n  }\n}));"
+      },
+      "position": [
+        672,
+        400
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "e1000001-0000-4000-8000-000000000005",
+      "name": "Fetch Tags",
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "options": {
+          "batching": {
+            "batch": {
+              "batchInterval": 1000,
+              "batchSize": 1
+            }
+          },
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "url": "={{ $json.url }}"
+      },
+      "position": [
+        896,
+        400
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4
+    },
+    {
+      "id": "e1000001-0000-4000-8000-000000000006",
+      "name": "Build Queries",
+      "parameters": {
+        "jsCode": "const seen = new Set();\nconst queries = [];\nconst resolveItems = $('Resolve Tags').all();\n\nfor (let i = 0; i < $input.all().length; i++) {\n  const item = $input.all()[i];\n  const category = resolveItems[i]?.json?.category || '';\n\n  let tags;\n  try {\n    tags = JSON.parse(item.json.data || '[]');\n  } catch {\n    continue;\n  }\n\n  if (!Array.isArray(tags) || tags.length === 0) continue;\n\n  const tag = tags.find(t =>\n    t.name.toLowerCase() === category.toLowerCase()\n  ) || tags[0];\n\n  if (!seen.has(tag.id)) {\n    seen.add(tag.id);\n    queries.push({ json: { tagId: tag.id, tagName: tag.name, category } });\n  }\n}\n\nreturn queries;"
+      },
+      "position": [
+        1120,
+        400
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "e1000001-0000-4000-8000-000000000007",
+      "name": "Fetch Jobs",
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "options": {
+          "batching": {
+            "batch": {
+              "batchInterval": 2000,
+              "batchSize": 1
+            }
+          },
+          "timeout": 30000
+        },
+        "url": "=https://euremotejobs.com/wp-json/wp/v2/job-listings?per_page=100&page=1&_embed&job_listing_tag={{ $json.tagId }}&orderby=date&order=desc"
+      },
+      "position": [
+        1344,
+        400
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4
+    },
+    {
+      "id": "e1000001-0000-4000-8000-000000000008",
+      "name": "Parse & Dedup",
+      "parameters": {
+        "jsCode": "const source = 'euremotejobs';\nconst seen = new Set();\nconst jobs = [];\n\n// Build tagId -> category map from Build Queries\nconst queryItems = $('Build Queries').all();\nconst tagToCategory = {};\nfor (const q of queryItems) {\n  tagToCategory[q.json.tagId] = q.json.category;\n}\n\nfor (const item of $input.all()) {\n  const wp = item.json;\n  if (!wp.link || seen.has(wp.link)) continue;\n  seen.add(wp.link);\n\n  const terms = wp._embedded?.['wp:term'] || [];\n  const allTerms = terms.flat();\n  const regions = allTerms.filter(t => t.taxonomy === 'job_listing_region');\n  const location = regions.map(r => r.name).join(', ') || null;\n\n  // Find category by matching WP tags to Build Queries tagId map\n  const wpTags = allTerms.filter(t => t.taxonomy === 'job_listing_tag');\n  const category = wpTags.map(t => tagToCategory[t.id]).find(c => c) || '';\n\n  jobs.push({\n    title: wp.title?.rendered || '',\n    company: wp.meta?._company_name || null,\n    url: wp.link,\n    description: wp.content?.rendered || '',\n    source,\n    salary: null,\n    location,\n    remote: true,\n    publishedAt: wp.date || null,\n    rawData: wp,\n    category,\n  });\n}\n\nreturn [{ json: { body: jobs, count: jobs.length, source } }];"
+      },
+      "position": [
+        1568,
+        400
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "e1000001-0000-4000-8000-000000000009",
+      "name": "Send Jobs",
+      "onError": "stopWorkflow",
+      "parameters": {
+        "options": {},
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "LhpVYiO75IR1RENN"
+        }
+      },
+      "position": [
+        1792,
+        400
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "e1000001-0000-4000-8000-000000000010",
+      "name": "Format Error",
+      "parameters": {
+        "jsCode": "const err = $input.first().json;\nconst source = $('Set Source').first().json.source;\nconst msg = err.error?.message || err.message || 'Unknown error';\nreturn [{json: {level: 'error', message: `${$workflow.name}: ${msg}`, source}}];"
+      },
+      "position": [
+        1568,
+        592
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "e1000001-0000-4000-8000-000000000011",
+      "name": "Notify Error",
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "options": {},
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "b2hckmdbVWlAt5zH"
+        }
+      },
+      "position": [
+        1792,
+        592
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "e1000001-0000-4000-8000-000000000100",
+      "name": "Note",
+      "parameters": {
+        "content": "## EU Remote Jobs Scraper\n\nScrapes remote job listings from euremotejobs.com via WordPress REST API.\n\n**Schedule:** Every 15 minutes\n**Source:** `euremotejobs`\n**API:** `/wp-json/wp/v2/job-listings`\n\n1. Get criteria from Job Hunter API\n2. Resolve criteria to WP tag IDs\n3. Fetch jobs per tag\n4. Parse, dedup & send to API",
+        "height": 280,
+        "width": 340
+      },
+      "position": [
+        -60,
+        200
+      ],
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1
+    },
+    {
+      "id": "e1000001-0000-4000-8000-000000000101",
+      "name": "Note1",
+      "parameters": {
+        "content": "### Error Handling\n\nOnly Fetch Jobs errors are handled here.\nGet Criteria and Send Jobs handle\ntheir own errors internally.",
+        "height": 120,
+        "width": 320
+      },
+      "position": [
+        1500,
+        640
+      ],
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1
+    }
+  ],
+  "settings": {
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionOrder": "v1",
+    "timezone": "Europe/Kiev"
+  },
+  "tags": []
+}

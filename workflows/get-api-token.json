@@ -1,0 +1,331 @@
+{
+  "connections": {
+    "Auth Enabled?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Check Cache",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Skip Auth",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Check Cache": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Has Cache?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Format Error": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Notify Error",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Get Token": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Cache & Return",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Format Error",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Has Cache?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Return Cached",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Get Token",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Notify Error": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Throw Error",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Trigger": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Auth Enabled?",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "WsxaC4nxFEVhjdtQ",
+  "name": "Get API Token",
+  "nodes": [
+    {
+      "id": "f1000001-0000-4000-8000-000000000099",
+      "name": "Sticky Note",
+      "parameters": {
+        "content": "## Get API Token\nShared sub-workflow. Obtains OAuth2 M2M token from Auth0.\nCaches token using workflow static data (TTL = Auth0 expires_in - 2 min buffer).\n\n**Input:** `{ source: string }`\n**Output:** `{ source, token }` (empty string if auth disabled)"
+      },
+      "position": [
+        -64,
+        128
+      ],
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1
+    },
+    {
+      "id": "f1000001-0000-4000-8000-000000000001",
+      "name": "Trigger",
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "source"
+            }
+          ]
+        }
+      },
+      "position": [
+        0,
+        400
+      ],
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "f1000001-0000-4000-8000-000000000002",
+      "name": "Auth Enabled?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "check-auth-enabled",
+              "leftValue": "={{ $env.AUTH0_ENABLED }}",
+              "operator": {
+                "operation": "equals",
+                "type": "string"
+              },
+              "rightValue": "true"
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        224,
+        400
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "f1000001-0000-4000-8000-000000000003",
+      "name": "Get Token",
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "jsonBody": "={{ JSON.stringify({ grant_type: 'client_credentials', client_id: $env.JOB_HUNTER_API_M2M_AUTH0_CLIENT_ID, client_secret: $env.JOB_HUNTER_API_M2M_AUTH0_CLIENT_SECRET, audience: $env.JOB_HUNTER_API_AUTH0_AUDIENCE }) }}",
+        "method": "POST",
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "url": "={{ 'https://' + $env.AUTH0_DOMAIN + '/oauth/token' }}"
+      },
+      "position": [
+        896,
+        208
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4
+    },
+    {
+      "id": "f1000001-0000-4000-8000-000000000004",
+      "name": "Cache & Return",
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst input = $('Trigger').first().json;\nconst token = $json.access_token;\nconst expiresIn = $json.expires_in || 3600;\nconst buffer = 120;\n\nstaticData.token = token;\nstaticData.expiresAt = Date.now() + (expiresIn - buffer) * 1000;\n\nreturn [{json: {...input, token}}];"
+      },
+      "position": [
+        1120,
+        112
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "f1000001-0000-4000-8000-000000000005",
+      "name": "Skip Auth",
+      "parameters": {
+        "jsCode": "const input = $('Trigger').first().json; return [{json: {...input, token: ''}}];"
+      },
+      "position": [
+        448,
+        496
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "f1000001-0000-4000-8000-000000000010",
+      "name": "Format Error",
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst source = $('Trigger').first().json.source || 'unknown';\nlet statusCode = 'N/A';\nlet message = 'Unexpected error';\n\nif (item.statusCode) statusCode = String(item.statusCode);\nif (item.body?.error_description) message = item.body.error_description;\nelse if (item.body?.error) message = item.body.error;\n\nconst raw = item.error?.message || '';\nif (raw && message === 'Unexpected error') message = raw;\n\nreturn [{json: {\n  level: 'error',\n  message: `Auth0 token request failed: HTTP ${statusCode} \\u2014 ${message}`,\n  source\n}}];"
+      },
+      "position": [
+        1120,
+        304
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "f1000001-0000-4000-8000-000000000011",
+      "name": "Notify Error",
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "options": {},
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "b2hckmdbVWlAt5zH"
+        }
+      },
+      "position": [
+        1344,
+        304
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "f1000001-0000-4000-8000-000000000012",
+      "name": "Throw Error",
+      "parameters": {
+        "jsCode": "const errorData = $('Format Error').first().json;\nthrow new Error(errorData.message);"
+      },
+      "position": [
+        1568,
+        304
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "f1000001-0000-4000-8000-000000000020",
+      "name": "Check Cache",
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst input = $('Trigger').first().json;\nconst now = Date.now();\n\nif (staticData.token && staticData.expiresAt > now) {\n  return [{json: {...input, token: staticData.token}}];\n}\nreturn [{json: {...input, token: ''}}];"
+      },
+      "position": [
+        448,
+        304
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "f1000001-0000-4000-8000-000000000021",
+      "name": "Has Cache?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "check-cache",
+              "leftValue": "={{ $json.token }}",
+              "operator": {
+                "operation": "notEmpty",
+                "type": "string"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        672,
+        304
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "f1000001-0000-4000-8000-000000000022",
+      "name": "Return Cached",
+      "parameters": {
+        "jsCode": "return $input.all();"
+      },
+      "position": [
+        896,
+        400
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    }
+  ],
+  "settings": {
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionOrder": "v1",
+    "timezone": "Europe/Kiev"
+  },
+  "tags": [
+    {
+      "name": "shared"
+    }
+  ]
+}
