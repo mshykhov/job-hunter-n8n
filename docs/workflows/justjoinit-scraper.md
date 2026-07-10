@@ -26,7 +26,7 @@ Reuses shared sub-workflows: **Get Criteria** (`51QbvQ9rXWCQSL9Y`), **Send Jobs*
 | source | `"justjoinit"` | hardcoded |
 | salary | `employmentTypes[0]` `{from,to,currency,unit}` | e.g. `EUR 4000–6000/month` |
 | location | `city` (or `Remote` when `workplaceType==='remote'`) | |
-| remote | `workplaceType === 'remote'` | request already filters `workplaceType=remote` |
+| remote | `workplaceType === 'remote'` | the `workplaceType=remote` query param is IGNORED by the API - non-remote offers are dropped client-side in Parse |
 | publishedAt | `publishedAt` (ISO) | |
 | **category** | matched from Get Criteria against `title` + `requiredSkills[]` | required |
 | rawData | `{ guid, experienceLevel, employmentTypes, openToHireUkrainians, categoryId }` | |
@@ -80,6 +80,8 @@ for (const item of $input.all()) {
   const offers = item.json?.data || [];
   for (const o of offers) {
     if (o.experienceLevel && o.experienceLevel !== "senior" && o.experienceLevel !== "c-level") continue;
+    // API ignores the workplaceType query param - enforce remote here
+    if (o.workplaceType !== "remote") continue;
 
     // match a tracked category against title + required skills
     const skills = (o.requiredSkills || []).map((s) => String(s?.name || s).toLowerCase());
@@ -141,6 +143,8 @@ return [{ json: { level: "error", message: `${$workflow.name}: ${err.error || er
 
 - **`Version: 2` header is mandatory.** The legacy `justjoin.it/api/offers` endpoint is dead (404);
   only `api.justjoin.it/v2/user-panel/offers` works.
+- **`workplaceType=remote` query param does nothing** (verified 2026-07-10: the filtered feed still
+  returns hybrid/office offers). The remote gate is the client-side check in Parse Jobs.
 - **openToHireUkrainians** is captured in `rawData` (not a filter) — useful later for ranking; do
   not hard-filter on it, most remote offers still hire from UA.
 - **No description on the list endpoint.** If richer text is needed, add an optional enrichment

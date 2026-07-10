@@ -31,7 +31,7 @@ Reuses the shared sub-workflows (folder: Shared, tag: `shared`):
 | description | `role_description` + `main_requirements`, HTML stripped | |
 | source | `"landingjobs"` | hardcoded |
 | salary | `gross_salary_low` / `gross_salary_high` + `currency_code` | e.g. `EUR 45000–60000` |
-| location | `locations` (array) joined, or `Remote` when `remote` | |
+| location | `locations[]` objects (`{city, country_code}`) mapped to city names, or `Remote` when `remote` | |
 | remote | `remote` (boolean) | |
 | publishedAt | `published_at` (ISO) | |
 | **category** | matched from Get Criteria against `tags[]` | **required by ingest DTO** |
@@ -107,7 +107,7 @@ for (const job of Array.isArray(rows) ? rows : []) {
 
   const location = job.remote
     ? "Remote"
-    : (job.locations || []).join(", ") || null;
+    : (job.locations || []).map((l) => l.city || l.country_code).filter(Boolean).join(", ") || null;
 
   out.push({
     json: {

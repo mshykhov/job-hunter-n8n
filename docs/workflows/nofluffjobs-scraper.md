@@ -25,8 +25,8 @@ Reuses shared sub-workflows: **Get Criteria** (`51QbvQ9rXWCQSL9Y`), **Send Jobs*
 | description | `""` (search list has no body) | tech captured in rawData |
 | source | `"nofluffjobs"` | hardcoded |
 | salary | `salary` `{from,to,currency,type}` | always present (`disclosedAt: VISIBLE`) |
-| location | `location.places[].city` (or `Remote` when `fullyRemote`) | |
-| remote | `fullyRemote` (boolean) | |
+| location | `location.places[].city` excluding the `"Remote"` placeholder city (or `Remote` when fully remote) | |
+| remote | `location.fullyRemote` (boolean) | top-level `fullyRemote` is always `false` - the real flag is nested |
 | publishedAt | `posted` (epoch ms) → ISO | |
 | **category** | matched from Get Criteria against `technology` + `tiles[]` | required |
 | rawData | `{ id, technology, seniority, help4Ua, salary }` | |
@@ -107,8 +107,9 @@ for (const item of $input.all()) {
       else salary = `${cur} from ${Math.round(s.from)}/month${type}`;
     }
 
-    const cities = (p.location?.places || []).map((pl) => pl.city).filter(Boolean);
-    const location = p.fullyRemote ? "Remote" : (cities.join(", ") || null);
+    const fullyRemote = !!p.location?.fullyRemote;
+    const cities = (p.location?.places || []).map((pl) => pl.city).filter((c) => c && c !== "Remote");
+    const location = fullyRemote ? "Remote" : (cities.join(", ") || null);
 
     out.push({
       json: {
@@ -119,7 +120,7 @@ for (const item of $input.all()) {
         source,
         salary,
         location,
-        remote: !!p.fullyRemote,
+        remote: fullyRemote,
         publishedAt: p.posted ? new Date(p.posted).toISOString() : null,
         category,
         rawData: { id: p.id, technology: p.technology, seniority: p.seniority, help4Ua: p.help4Ua, salary: p.salary },
@@ -149,6 +150,6 @@ return [{ json: { level: "error", message: `${$workflow.name}: ${err.error || er
 - **POST, not GET** — an n8n HTTP Request node handles this; a plain fetch of the page HTML will not.
 - **Salary is always disclosed** on this board, which makes it high-signal for score/ranking.
 - **help4Ua** is captured in `rawData` for later ranking — do not hard-filter on it.
-- **`region=pl`** returns CEE + remote-EU roles; the `fullyRemote` flag is the remote gate.
+- **`region=pl`** returns CEE + remote-EU roles; `location.fullyRemote` is the remote gate.
 - **category is mandatory** on every job; postings whose technology/tiles do not match a tracked
   category (e.g. PHP, .NET) are dropped.
