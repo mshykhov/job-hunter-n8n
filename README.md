@@ -1,4 +1,4 @@
-# Job Hunter — n8n Workflows
+# Job Hunter - n8n Workflows
 
 Scraping workflows for job vacancy aggregation. Part of the [Job Hunter](https://github.com/mshykhov/job-hunter) system.
 
@@ -41,15 +41,23 @@ See `.env.example` for all variables. Key ones:
 
 ## Workflow Management
 
-Workflows are edited in the n8n UI and version-controlled as JSON exports.
+Workflows are edited in the n8n UI and version-controlled as normalized JSON exports
+(`workflows/*.json`, one slug-named file per workflow).
 
 ```bash
-# Export workflows from n8n to Git
-./scripts/export.sh
+# Export workflows from an n8n instance to Git (REST API)
+N8N_URL=https://... N8N_KEY=... ./scripts/export.sh
 
-# Import workflows from Git into n8n
+# Deploy workflows from Git to an n8n instance (REST API, drift-guarded)
+N8N_URL=https://... N8N_KEY=... TELEGRAM_BOT_TOKEN=... ./scripts/deploy.sh
+
+# Import workflows into a local docker n8n (CLI)
 ./scripts/import.sh
 ```
+
+Pushing `workflows/**` to master triggers the deploy via GitHub Actions. The deploy
+aborts when the target instance has changes missing from git history (drift-guard) -
+resync with `export.sh` + commit, or override with `FORCE=1`.
 
 ## Architecture
 

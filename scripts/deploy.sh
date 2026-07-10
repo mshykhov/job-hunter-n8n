@@ -1,24 +1,17 @@
 #!/bin/bash
 # Deploy n8n workflows to production via REST API.
-# Matches by name (not file ID), remaps sub-workflow and credential references, syncs tags.
+# Matches by name (not file ID), remaps sub-workflow and credential references,
+# syncs tags, and refuses to overwrite prod state that was never exported to git
+# (drift-guard; override with FORCE=1).
 #
 # Required env: N8N_URL, N8N_KEY, TELEGRAM_BOT_TOKEN
 set -euo pipefail
 
 API="$N8N_URL/api/v1"
+NORMALIZE="scripts/normalize.jq"
 
 api() { curl -s -H "X-N8N-API-KEY: $N8N_KEY" -H "Content-Type: application/json" "$@"; }
-
-# n8n API accepted fields (active and tags are read-only)
-FILTER='{
-  name, nodes, connections,
-  settings: (.settings // {} | {
-    executionOrder, timezone, callerPolicy, callerIds,
-    availableInMCP, saveExecutionProgress, saveManualExecutions,
-    saveDataErrorExecution, saveDataSuccessExecution,
-    executionTimeout, errorWorkflow, timeSavedPerExecution
-  } | with_entries(select(.value != null)))
-}'
+sha() { openssl dgst -sha256 | awk '{print $NF}'; }
 
 # Helper: build JSON object from key\tvalue lines
 kv_to_json() { jq -Rn '[inputs | split("\t") | {(.[0]): .[1]}] | add // {}'; }
@@ -33,18 +26,56 @@ while IFS=$'\t' read -r name id; do
 done < <(api "$API/workflows?limit=200" | jq -r '.data[] | [.name, .id] | @tsv')
 
 for f in workflows/*.json; do
-  lid=$(basename "$f" .json)
+  lid=$(jq -r '.id // empty' "$f")
   name=$(jq -r '.name' "$f")
   pid=${PROD_ID[$name]:-}
   if [ -n "$pid" ]; then
-    LOCAL_TO_PROD[$lid]=$pid
-    echo "  $name: $lid -> $pid"
+    if [ -n "$lid" ] && [ "$lid" != "$pid" ]; then LOCAL_TO_PROD[$lid]=$pid; fi
+    echo "  $name: ${lid:-?} -> $pid"
   else
     echo "  $name: new"
   fi
 done
 
 REMAP=$(for k in "${!LOCAL_TO_PROD[@]}"; do printf '%s\t%s\n' "$k" "${LOCAL_TO_PROD[$k]}"; done | kv_to_json)
+
+# --- Drift-guard ---
+# Prod state must be reproducible from the git history of each workflow file.
+# If prod was edited (UI/MCP) and never exported, abort instead of reverting it.
+echo -e "\n=== Drift check ==="
+drifted=()
+for f in workflows/*.json; do
+  name=$(jq -r '.name' "$f")
+  pid=${PROD_ID[$name]:-}
+  if [ -z "$pid" ]; then continue; fi
+
+  prod_hash=$(api "$API/workflows/$pid" | jq -S -f "$NORMALIZE" | sha)
+  match=0
+  while read -r rev; do
+    h=$(git show "$rev:$f" 2>/dev/null | jq -S -f "$NORMALIZE" 2>/dev/null | sha) || continue
+    if [ "$h" = "$prod_hash" ]; then
+      match=1
+      break
+    fi
+  done < <(git log --format=%H -- "$f")
+
+  if [ "$match" -eq 1 ]; then
+    echo "  ok: $name"
+  else
+    drifted+=("$name")
+    echo "  DRIFT: $name"
+  fi
+done
+
+if [ "${#drifted[@]}" -gt 0 ]; then
+  if [ "${FORCE:-0}" = "1" ]; then
+    echo "  FORCE=1 set - overwriting drifted workflows"
+  else
+    echo -e "\nAborting: prod has changes not in git history for: ${drifted[*]}"
+    echo "Run scripts/export.sh + commit to resync, or re-run with FORCE=1 to overwrite prod."
+    exit 1
+  fi
+fi
 
 # --- Sync credentials ---
 echo -e "\n=== Syncing credentials ==="
@@ -106,16 +137,17 @@ for f in workflows/*.json; do
   name=$(jq -r '.name' "$f")
   pid=${PROD_ID[$name]:-}
 
-  # Filter to API fields + remap sub-workflow and credential IDs (local -> prod)
-  payload=$(jq --argjson remap "$REMAP" --argjson cremap "$CRED_MAP" "$FILTER |
-    .nodes |= [.[] |
+  # Normalize to API fields + remap sub-workflow and credential IDs (local -> prod)
+  payload=$(jq -S -f "$NORMALIZE" "$f" | jq --argjson remap "$REMAP" --argjson cremap "$CRED_MAP" '
+    del(.id, .tags)
+    | .nodes |= [.[] |
       if .parameters.workflowId?.value? then
-        .parameters.workflowId.value = (\$remap[.parameters.workflowId.value] // .parameters.workflowId.value)
+        .parameters.workflowId.value = ($remap[.parameters.workflowId.value] // .parameters.workflowId.value)
       else . end |
       if .credentials then
-        .credentials |= with_entries(.value.id = (\$cremap[.value.id] // .value.id))
+        .credentials |= with_entries(.value.id = ($cremap[.value.id] // .value.id))
       else . end
-    ]" "$f")
+    ]')
 
   if [ -n "$pid" ]; then
     if ! echo "$payload" | api -f -X PUT "$API/workflows/$pid" -d @- > /dev/null; then

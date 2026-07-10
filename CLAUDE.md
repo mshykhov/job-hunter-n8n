@@ -1,86 +1,63 @@
 # job-hunter-n8n
 
-**TL;DR:** n8n scraping workflows for [Job Hunter](https://github.com/mshykhov/job-hunter). Collects vacancies from job platforms (DOU, Djinni, LinkedIn, Google Jobs) and sends them to the API via REST.
+**TL;DR:** n8n scraping workflows for [Job Hunter](https://github.com/mshykhov/job-hunter). Collects vacancies from job platforms (DOU, Djinni, LinkedIn, ...) and sends them to the API via REST.
 
 > **Stack**: n8n 2.10 (Community), PostgreSQL 16, Docker Compose
 
----
-
 ## Portfolio Project
 
-**Public repository.** Everything must be clean and professional.
-
-### Standards
-- **English only** — README, commits, CLAUDE.md
-- **Meaningful commits** — conventional commits
-- **No junk** — no test/temporary workflows in master
-- **No AI mentions** in commits
-- **No Co-Authored-By** — never add Co-Authored-By or any trailer referencing Claude/AI
-
----
+**Public repository.** Everything must be clean and professional:
+- **English only** - README, commits, CLAUDE.md
+- **Conventional commits**, no test/temporary workflows in master
+- **No AI mentions** in commits, no Co-Authored-By or any trailer referencing Claude/AI
 
 ## AI Guidelines
 
 ### Principles
-- **Workflows are config, not code.** Edit in n8n UI, sync via Source Control
-- **Never edit workflow JSON manually** — only via n8n UI or MCP
-- **No secrets in code** — API keys, tokens via .env (gitignored)
-- **N8N_ENCRYPTION_KEY** — one key across all environments. Without it, credentials can't be decrypted
-- **Environment variables** for all external config (Telegram, API keys) — no manual credential setup in n8n UI
+- **Workflows are config, not code** - edit via n8n UI or MCP (the `n8n` MCP server also reads executions and node docs), never hand-edit workflow JSON in `workflows/`
+- **No secrets in code** - API keys, tokens via .env (gitignored)
+- **N8N_ENCRYPTION_KEY** - one key across all environments, otherwise credentials can't be decrypted
+- **Environment variables** for all external config (Telegram, API keys) - no manual credential setup in n8n UI
 
 ### Workflow Development Process
 **IMPORTANT: Doc first, then build.**
-1. **Design** — create/update doc in `docs/workflows/{name}.md` with flow diagram, node config, parsed fields, edge cases, and observability
-2. **Build** — construct workflow in n8n UI (or via MCP) following the doc
-3. **Test** — run each node step by step, verify output matches doc
-4. **Sync** — push to Git via n8n Source Control (Settings → Source Control → Push)
+1. **Design** - create/update doc in `docs/workflows/{name}.md` with flow diagram, node config, parsed fields, edge cases, and observability
+2. **Build** - construct workflow in n8n UI (or via MCP) following the doc
+3. **Test** - run each node step by step, verify output matches doc
+4. **Sync** - `scripts/export.sh`, then commit
 
-### Source Control
-n8n has built-in Git sync (`N8N_VERSION_CONTROL_ENABLED=true`):
-- **Dev**: edit in UI → Push to Git
-- **Prod**: Pull from Git → workflows deployed
-- Setup: Settings → Source Control → connect SSH key to repo
-
-### MCP Integration
-AI assistant (Claude Code) connects to n8n via MCP server for:
-- Creating and updating workflows programmatically
-- Checking workflow executions and errors
-- Accessing n8n node documentation
+### Sync & Deploy
+The n8n instance is where workflows are edited; git is where they are versioned:
+- **Export**: `N8N_URL=... N8N_KEY=... scripts/export.sh` - writes normalized, slug-named JSON to `workflows/` (`normalize.jq` strips runtime noise). Run after every UI/MCP edit, then commit
+- **Deploy**: push to `workflows/**` on master → GitHub Actions runs `scripts/deploy.sh` (REST PUT/POST matched by workflow name, sub-workflow/credential IDs remapped)
+- **Drift-guard**: deploy aborts if prod state is not reproducible from the git history of a workflow file (someone edited prod without exporting). Resync with export.sh + commit, or `FORCE=1` to overwrite
+- **Active state** is per-environment, never synced from git
 
 ### Structure
 ```
 job-hunter-n8n/
 ├── docker-compose.yml      # n8n + PostgreSQL (local dev)
 ├── .env                    # Secrets (gitignored)
-├── .env.example
 ├── docs/
 │   └── workflows/          # Workflow design docs (source of truth)
 ├── scripts/
-│   ├── export.sh           # Export workflows from n8n to JSON
-│   └── import.sh           # Import workflows from JSON to n8n
-├── workflows/              # Workflow JSON exports (version-controlled)
+│   ├── export.sh           # Export workflows from an n8n instance (REST) to workflows/
+│   ├── deploy.sh           # Deploy workflows/ to an n8n instance (REST, drift-guarded)
+│   ├── normalize.jq        # Shared canonical workflow representation
+│   └── import.sh           # Import workflows into local docker n8n (CLI)
+├── workflows/              # Workflow JSON exports (version-controlled, slug-named)
 ├── CLAUDE.md
 └── README.md
 ```
 
 ### Workflow Conventions
-- One platform = one scraper workflow
-- Shared sub-workflows for reusable operations (folder: Shared, tag: `shared`)
-- Scraper workflows in folder: Scrapers, tagged with `scraper` + platform name (e.g., `dou`, `linkedin`)
-- Schedule Trigger: every 15 minutes
-- Output: normalized JSON with job data
-- **Sub-workflows handle their own error logging** — Format Error → Telegram Notify → Throw
-- **Scraper only logs its own direct HTTP errors** (e.g., RSS fetch)
-- **All shared sub-workflows receive `source` parameter** — identifies calling workflow (e.g., `"dou"`, `"linkedin"`)
-- **Telegram Notify** — shared sub-workflow, input: `{level: "error"|"warn"|"info", message: "text", source: "platform"}`
-- **Send Jobs** — shared sub-workflow, input: `{body: [...], count: N, source: "platform"}`, handles has-jobs check + POST + all logging
-- **Get Criteria** — shared sub-workflow, input: `{source: "platform"}`, handles GET + error logging
-- **Get Proxies** — shared sub-workflow, fetches proxy from API, handles error logging
-- **Check URLs** — shared sub-workflow, input: `{urls: [...], source: "platform"}`, validates URL accessibility
+- One platform = one scraper workflow (folder: Scrapers, tags: `scraper` + platform), Schedule Trigger every 15 minutes
+- Shared sub-workflows for reusable operations (folder: Shared, tag: `shared`); all receive a `source` parameter identifying the caller (e.g., `"dou"`)
+- Sub-workflows handle their own error logging (Format Error → Telegram Notify → Throw); a scraper only logs its own direct HTTP errors
+- Shared contracts: **Get Criteria** `{source}`, **Send Jobs** `{body, count, source}` (has-jobs check + POST + logging), **Telegram Notify** `{level, message, source}`, **Get Proxies**, **Check URLs** `{urls, source}` - full I/O details in `docs/workflows/`
 
 ### Job Hunter API
-- **API Spec (local):** http://localhost:8095/api-docs
-- Use this to check current endpoints, request/response schemas, enums (e.g., `source` values)
+- **API Spec (local):** http://localhost:8095/api-docs - check endpoints, schemas, enums (e.g., `source` values)
 
 ### Deployment
 - Local: `docker compose up -d`
