@@ -88,6 +88,7 @@ const source = $('Set Source').first().json.source;
 const categories = $('Get Criteria').all().map((i) => i.json.category.toLowerCase());
 
 const out = [];
+const seenRemote = new Set();
 for (const item of $input.all()) {
   const postings = item.json?.postings || [];
   for (const p of postings) {
@@ -108,6 +109,12 @@ for (const item of $input.all()) {
     }
 
     const fullyRemote = !!p.location?.fullyRemote;
+    // NFJ duplicates a fully-remote posting once per voivodeship - keep one
+    if (fullyRemote) {
+      const key = `${(p.title || "").toLowerCase()}|${(p.name || "").toLowerCase()}`;
+      if (seenRemote.has(key)) continue;
+      seenRemote.add(key);
+    }
     const cities = (p.location?.places || []).map((pl) => pl.city).filter((c) => c && c !== "Remote");
     const location = fullyRemote ? "Remote" : (cities.join(", ") || null);
 
@@ -153,3 +160,7 @@ return [{ json: { level: "error", message: `${$workflow.name}: ${err.error || er
 - **`region=pl`** returns CEE + remote-EU roles; `location.fullyRemote` is the remote gate.
 - **category is mandatory** on every job; postings whose technology/tiles do not match a tracked
   category (e.g. PHP, .NET) are dropped.
+- **Fully-remote postings are duplicated per voivodeship** (verified 2026-07-10: the same offer
+  appears with `-lower-silesian`, `-masovian`, … slug suffixes, one per region). Parse keeps the
+  first variant per `title|company` when `fullyRemote` - non-remote postings are not deduped, since
+  same-title offers in different cities are distinct.
