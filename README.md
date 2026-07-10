@@ -14,6 +14,9 @@ n8n workflows that periodically scrape job listings from multiple platforms and 
 | [Djinni](https://djinni.co) | HTML scraping | Ukraine | Planned |
 | [LinkedIn](https://linkedin.com) | via Google Jobs / JSearch | International | Planned |
 | [Google Jobs](https://www.google.com/search?q=jobs) | SerpAPI / scraping | International | Planned |
+| [Landing.jobs](https://landing.jobs) | REST API (`/api/v1/jobs`) | EU remote | Doc |
+| [JustJoinIT](https://justjoin.it) | REST API (`api.justjoin.it/v2`) | EU / B2B | Doc |
+| [NoFluffJobs](https://nofluffjobs.com) | Search API (POST) | CEE / B2B | Doc |
 
 ## Quick Start
 
