@@ -58,7 +58,7 @@ Two-phase LinkedIn scraper: fast discovery of all new jobs via search, then para
 
 ### How it works
 
-Uses existing `GET /jobs` on job-spy-api (python-jobspy `scrape_jobs()`). No description fetching — only search result cards. Fast and lightweight.
+Uses existing `GET /jobs` on job-spy-api (python-jobspy `scrape_jobs()`). No description fetching - only search result cards. Fast and lightweight.
 
 ### Search parameters
 
@@ -70,7 +70,7 @@ Uses existing `GET /jobs` on job-spy-api (python-jobspy `scrape_jobs()`). No des
 | `is_remote` | `true` | Weak filter but reduces noise |
 | `results_wanted` | `200` | Covers high-volume categories (Java: 100+/hour) |
 | `hours_old` | `1` | Only fresh jobs |
-| `linkedin_fetch_description` | `false` | **No descriptions** — Phase 2 handles this |
+| `linkedin_fetch_description` | `false` | **No descriptions** - Phase 2 handles this |
 | `description_format` | `markdown` | For any snippets that come through |
 | `proxies` | All proxies comma-separated | python-jobspy round-robins internally |
 
@@ -85,7 +85,7 @@ Uses existing `GET /jobs` on job-spy-api (python-jobspy `scrape_jobs()`). No des
 | date_posted | `time.job-search-card__listdate[datetime]` | Always (fixed in v0.2.1) |
 | is_remote | LinkedIn metadata | **Unreliable** (~5% accuracy) |
 | salary | `span.job-search-card__salary-info` | Rare (<20%) |
-| description | — | **Not available** (Phase 2) |
+| description | - | **Not available** (Phase 2) |
 
 ### Timing per category
 
@@ -152,7 +152,7 @@ New endpoint `POST /jobs/enrich` on job-spy-api. Fetches full detail pages from 
                       alive workers pick them up)
 ```
 
-Each proxy has a **stable browser fingerprint** (User-Agent, Sec-Ch-Ua, Accept-Language, etc.) assigned by the Kotlin API via ScrapeOps API. Same proxy always uses the same fingerprint — looks like a real user.
+Each proxy has a **stable browser fingerprint** (User-Agent, Sec-Ch-Ua, Accept-Language, etc.) assigned by the Kotlin API via ScrapeOps API. Same proxy always uses the same fingerprint - looks like a real user.
 
 ### Request format
 
@@ -275,7 +275,7 @@ Duration: 120s
 
 **Full failure:**
 ```
-🚨 LinkedIn Scraper: enrichment failed — all proxies exhausted after 3 jobs
+🚨 LinkedIn Scraper: enrichment failed - all proxies exhausted after 3 jobs
 15 jobs will retry next cycle
 ```
 
@@ -338,15 +338,15 @@ Duration: 120s
 | LinkedIn caps at offset=1000 | Max ~100-200 actual results | Fresh jobs window is small |
 | Detail page may require login | Redirect to `/signup` | Proxy dies, others continue |
 | No JSON-LD on LinkedIn guest pages | Must parse HTML with selectors | BeautifulSoup in job-spy-api |
-| `published_at` time from meta desc | "Posted HH:MM:SS AM/PM" — timezone unspecified (likely UTC) | Combined with date_posted from Phase 1 |
+| `published_at` time from meta desc | "Posted HH:MM:SS AM/PM" - timezone unspecified (likely UTC) | Combined with date_posted from Phase 1 |
 | `date_posted` needs both CSS selectors | Fixed in python-jobspy main branch | job-spy-api v0.2.1 |
 
 ## Edge Cases
 
-- **job-spy-api down** — Search fails → Telegram error notification
-- **All proxies blocked during enrichment** — Jobs ingested without descriptions, retry next cycle
-- **Kotlin API down** — check-urls/ingest fail → Telegram error notification
-- **Empty search results** — Normal for `hours_old=1` during off-hours → Telegram info
-- **Duplicate jobs across categories** — API deduplicates by URL (UNIQUE constraint)
-- **Job deleted between search and enrichment** — `no_data` status, ingested without description
-- **First run (cold start)** — ~500 new jobs, ~4 min enrichment, all within 15 min window
+- **job-spy-api down** - Search fails → Telegram error notification
+- **All proxies blocked during enrichment** - Jobs ingested without descriptions, retry next cycle
+- **Kotlin API down** - check-urls/ingest fail → Telegram error notification
+- **Empty search results** - Normal for `hours_old=1` during off-hours → Telegram info
+- **Duplicate jobs across categories** - API deduplicates by URL (UNIQUE constraint)
+- **Job deleted between search and enrichment** - `no_data` status, ingested without description
+- **First run (cold start)** - ~500 new jobs, ~4 min enrichment, all within 15 min window

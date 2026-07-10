@@ -7,13 +7,13 @@ and an `openToHireUkrainians` signal. Categories drive a client-side skill filte
 
 **Folder:** Scrapers | **Tags:** `scraper`, `justjoinit`
 
-> **Wire slug:** `justjoinit` — must equal `JobSource.JUSTJOINIT.value`. Not
+> **Wire slug:** `justjoinit` - must equal `JobSource.JUSTJOINIT.value`. Not
 > separator-insensitive, so `just_join_it` would 400.
 
 ## Architecture
 
 Reuses shared sub-workflows: **Get Criteria** (`51QbvQ9rXWCQSL9Y`), **Send Jobs**
-(`3JhDuzeLD3FbIOP1`), **Telegram Notify** (`TQShysginOAn9uQs`) — same roles as the other scrapers.
+(`3JhDuzeLD3FbIOP1`), **Telegram Notify** (`TQShysginOAn9uQs`) - same roles as the other scrapers.
 
 ## Data sources per field (verified 2026-07-10)
 
@@ -45,7 +45,7 @@ Schedule Trigger (15 min)
 
 ## Node Details
 
-### 1. Schedule Trigger — every 15 minutes.
+### 1. Schedule Trigger - every 15 minutes.
 
 ### 2. Set Source
 ```javascript
@@ -131,7 +131,7 @@ const jobs = $input.all().map((i) => i.json);
 return [{ json: { body: jobs, count: jobs.length, source: "justjoinit" } }];
 ```
 
-### 8. Send Jobs (Execute Workflow `3JhDuzeLD3FbIOP1`) — `onError: continueErrorOutput`.
+### 8. Send Jobs (Execute Workflow `3JhDuzeLD3FbIOP1`) - `onError: continueErrorOutput`.
 
 ### 9. Format Error → Notify Error (Execute Workflow `TQShysginOAn9uQs`)
 ```javascript
@@ -145,7 +145,7 @@ return [{ json: { level: "error", message: `${$workflow.name}: ${err.error || er
   only `api.justjoin.it/v2/user-panel/offers` works.
 - **`workplaceType=remote` query param does nothing** (verified 2026-07-10: the filtered feed still
   returns hybrid/office offers). The remote gate is the client-side check in Parse Jobs.
-- **openToHireUkrainians** is captured in `rawData` (not a filter) — useful later for ranking; do
+- **openToHireUkrainians** is captured in `rawData` (not a filter) - useful later for ranking; do
   not hard-filter on it, most remote offers still hire from UA.
 - **No description on the list endpoint.** If richer text is needed, add an optional enrichment
   fetch of the offer detail endpoint; not required for matching (skills live in rawData).

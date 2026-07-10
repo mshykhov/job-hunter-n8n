@@ -10,7 +10,7 @@ Uses 3 shared sub-workflows (folder: Shared, tag: `shared`):
 
 | Sub-workflow | Purpose |
 |---|---|
-| **Get Criteria** | `GET /criteria?source={source}` — returns categories. Logs errors to Telegram, throws on failure. |
+| **Get Criteria** | `GET /criteria?source={source}` - returns categories. Logs errors to Telegram, throws on failure. |
 | **Send Jobs** | Checks count, `POST /jobs/ingest`, logs success/warn/error to Telegram. |
 | **Telegram Notify** | Routes `{level, message}` to Telegram forum topics (error/warn → alerts, info → logs). |
 
@@ -24,7 +24,7 @@ Uses 3 shared sub-workflows (folder: Shared, tag: `shared`):
 | AJAX load_more | Medium (HTML in response) | Medium | Medium |
 | **WP REST API** (chosen) | High (structured JSON) | Fast | Low |
 
-euremotejobs.com runs on WordPress + WP Job Manager. The REST API (`/wp-json/wp/v2/job-listings`) returns structured JSON with full job descriptions, company names, taxonomy data — no HTML parsing needed.
+euremotejobs.com runs on WordPress + WP Job Manager. The REST API (`/wp-json/wp/v2/job-listings`) returns structured JSON with full job descriptions, company names, taxonomy data - no HTML parsing needed.
 
 **Trade-off:** Salary data is not reliably in meta fields (sometimes embedded in `content.rendered` HTML). Location comes from embedded taxonomy terms.
 
@@ -36,10 +36,10 @@ euremotejobs.com runs on WordPress + WP Job Manager. The REST API (`/wp-json/wp/
 | company | `meta._company_name` | Stable |
 | url | `link` | Stable |
 | description | `content.rendered` (HTML) | Stable |
-| source | Hardcoded `"euremotejobs"` | — |
-| salary | — | Not reliably available in meta |
+| source | Hardcoded `"euremotejobs"` | - |
+| salary | - | Not reliably available in meta |
 | location | `_embedded.wp:term` (regions taxonomy) | Stable |
-| remote | Always `true` (EU remote job board) | — |
+| remote | Always `true` (EU remote job board) | - |
 | publishedAt | `date` (ISO 8601) | Stable |
 
 ## Flow
@@ -182,7 +182,7 @@ GET https://euremotejobs.com/wp-json/wp/v2/job-listings
 |---|---|---|
 | `per_page` | Results per page (max 100) | `100` |
 | `page` | Page number | `1` |
-| `_embed` | Include taxonomy terms inline | — |
+| `_embed` | Include taxonomy terms inline | - |
 | `job_listing_tag` | Filter by tag ID | `229` (Java) |
 | `job-categories` | Filter by category ID | `65` (Engineering) |
 | `orderby` | Sort field | `date` |
@@ -206,7 +206,7 @@ Returns matching tags with `id`, `name`, `slug`, `count`.
 | Spring | 2677 | ~15 |
 | React | 238 | ~200 |
 
-Tag IDs are resolved dynamically at runtime — not hardcoded in the workflow.
+Tag IDs are resolved dynamically at runtime - not hardcoded in the workflow.
 
 ## Parsed Fields (JobIngestRequest)
 
@@ -217,7 +217,7 @@ Tag IDs are resolved dynamically at runtime — not hardcoded in the workflow.
 | url | `link` | https://euremotejobs.com/job/senior-software-engineer-12/ |
 | description | `content.rendered` | `<p>Zencargo is looking for...</p>` |
 | source | Hardcoded | euremotejobs |
-| salary | — (not reliably in meta) | null |
+| salary | - (not reliably in meta) | null |
 | location | `_embedded` region terms | Europe |
 | remote | Always true | true |
 | publishedAt | `date` | 2026-03-04T11:35:24 |
@@ -252,12 +252,12 @@ POST /jobs/ingest
 
 ## Edge Cases
 
-- **Tag search returns no match** — category skipped (no query for it)
-- **Tag search returns partial match** — exact name match preferred, falls back to first result
-- **Empty API response** — 0 jobs for that tag, Parse & Dedup handles gracefully
-- **Rate limiting** — 2s delay between job fetches; no known rate limit on WP REST API
-- **Large response** — max 100 jobs per tag; for 15-min polling, page 1 is sufficient
-- **HTML in description** — kept as-is (same as LinkedIn), API handles storage
+- **Tag search returns no match** - category skipped (no query for it)
+- **Tag search returns partial match** - exact name match preferred, falls back to first result
+- **Empty API response** - 0 jobs for that tag, Parse & Dedup handles gracefully
+- **Rate limiting** - 2s delay between job fetches; no known rate limit on WP REST API
+- **Large response** - max 100 jobs per tag; for 15-min polling, page 1 is sufficient
+- **HTML in description** - kept as-is (same as LinkedIn), API handles storage
 
 ## Performance
 

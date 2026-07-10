@@ -11,7 +11,7 @@ Uses 4 shared sub-workflows (folder: Shared, tag: `shared`):
 | Sub-workflow | Purpose |
 |---|---|
 | **Get API Token** | Obtains OAuth2 M2M token from Auth0 (cached 10 min). |
-| **Get Criteria** | `GET /criteria?source={source}` — returns categories + remoteOnly. Logs errors to Telegram, throws on failure. |
+| **Get Criteria** | `GET /criteria?source={source}` - returns categories + remoteOnly. Logs errors to Telegram, throws on failure. |
 | **Send Jobs** | Checks count, `POST /jobs/ingest`, logs success/warn/error to Telegram. |
 | **Telegram Notify** | Routes `{level, message}` to Telegram forum topics (error/warn → alerts, info → logs). |
 
@@ -30,7 +30,7 @@ web3.career is behind Cloudflare. Direct requests from the server return 403. Th
 | Sitemap | Only ~3% coverage |
 | **HTML + JSON-LD** (chosen) | Full coverage, structured data |
 
-web3.career listing pages contain ~15 separate JSON-LD `JobPosting` blocks per page with complete structured data (title, company, salary, description, location). No enrichment phase needed — all data in a single GET request.
+web3.career listing pages contain ~15 separate JSON-LD `JobPosting` blocks per page with complete structured data (title, company, salary, description, location). No enrichment phase needed - all data in a single GET request.
 
 ### Data sources per field
 
@@ -40,26 +40,26 @@ web3.career listing pages contain ~15 separate JSON-LD `JobPosting` blocks per p
 | company | JSON-LD `hiringOrganization.name` | Stable |
 | url | HTML `<a href="/{slug}/{id}">` | Stable (regex) |
 | description | JSON-LD `description` | Stable |
-| source | Hardcoded `"web3career"` | — |
+| source | Hardcoded `"web3career"` | - |
 | salary | JSON-LD `baseSalary` (formatted) | Stable |
 | location | JSON-LD `applicantLocationRequirements.name` | Stable |
 | remote | JSON-LD `jobLocationType === "TELECOMMUTE"` | Stable |
 | publishedAt | JSON-LD `datePosted` | Stable |
-| rawData | Full JSON-LD JobPosting object | — |
+| rawData | Full JSON-LD JobPosting object | - |
 
 ## Flow (11 nodes)
 
 ```
 Schedule Trigger (15 min)
   → Set Source ({source: "web3career"})
-  → Get Proxy (Execute Workflow — shared)
-  → Get Criteria (Execute Workflow — shared)
+  → Get Proxy (Execute Workflow - shared)
+  → Get Criteria (Execute Workflow - shared)
   → Build Page URLs (category + remoteOnly → path URLs)
   → Fetch Listing Pages (HTTP, proxy + fingerprint headers, batch 1/2s)
       ├─ [success] → Parse Jobs (JSON-LD + URL extraction)
       │    → Prepare Ingest (aggregate + dedup by URL)
-      │    → Send Jobs (Execute Workflow — shared)
-      └─ [error] → Format Error → Notify Error (Telegram — shared)
+      │    → Send Jobs (Execute Workflow - shared)
+      └─ [error] → Format Error → Notify Error (Telegram - shared)
 ```
 
 - **Get Proxy** fetches single proxy + fingerprint from API, handles errors + throws to stop pipeline
@@ -283,7 +283,7 @@ Each category page contains ~15 separate `<script type="application/ld+json">` b
 | Salary | null | Structured (baseSalary in JSON-LD) |
 | Location | null | From JSON-LD `applicantLocationRequirements` |
 | rawData | Not sent | JSON-LD object |
-| Proxy | Not needed | Required (Cloudflare) — via Get Proxy shared sub-workflow |
+| Proxy | Not needed | Required (Cloudflare) - via Get Proxy shared sub-workflow |
 | Batching | 1 req/1s | 1 req/2s (be polite) |
 
 ## API Prerequisite
@@ -296,11 +296,11 @@ The Job Hunter API `source` enum needs `"web3career"` added to:
 
 ## Edge Cases
 
-1. **No JSON-LD blocks** — page has no jobs for this category, Parse Jobs skips it
-2. **URL count mismatch** — if JSON-LD blocks > HTML links, unmatched entries skipped (no URL = no job)
-3. **Missing baseSalary** — not all jobs have salary data, salary = null for those
-4. **Duplicate jobs across categories** — Prepare Ingest deduplicates by URL
-5. **remoteOnly = false** — URL becomes `/{cat}-jobs` (no `+remote`)
+1. **No JSON-LD blocks** - page has no jobs for this category, Parse Jobs skips it
+2. **URL count mismatch** - if JSON-LD blocks > HTML links, unmatched entries skipped (no URL = no job)
+3. **Missing baseSalary** - not all jobs have salary data, salary = null for those
+4. **Duplicate jobs across categories** - Prepare Ingest deduplicates by URL
+5. **remoteOnly = false** - URL becomes `/{cat}-jobs` (no `+remote`)
 
 ## Performance
 

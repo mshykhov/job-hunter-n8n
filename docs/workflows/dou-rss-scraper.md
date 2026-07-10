@@ -10,7 +10,7 @@ Uses 3 shared sub-workflows (folder: Shared, tag: `shared`):
 
 | Sub-workflow | Purpose |
 |---|---|
-| **Get Criteria** | `GET /criteria?source={source}` — returns categories. Logs errors to Telegram, throws on failure. |
+| **Get Criteria** | `GET /criteria?source={source}` - returns categories. Logs errors to Telegram, throws on failure. |
 | **Send Jobs** | Checks count, `POST /jobs/ingest`, logs success/warn/error to Telegram. |
 | **Telegram Notify** | Routes `{level, message}` to Telegram forum topics (error/warn → alerts, info → logs). |
 
@@ -51,10 +51,10 @@ https://jobs.dou.ua/vacancies/feeds/?category={category}
 
 Categories come from the API dynamically (`GET /criteria?source=DOU`).
 
-Available DOU filters (not used — backend filters later):
-- `exp=5plus` — experience 5+ years
-- `remote` — remote only
-- `city=Kyiv` — specific city
+Available DOU filters (not used - backend filters later):
+- `exp=5plus` - experience 5+ years
+- `remote` - remote only
+- `city=Kyiv` - specific city
 
 ## Parsed Fields (JobIngestRequest)
 
@@ -74,12 +74,12 @@ Available DOU filters (not used — backend filters later):
 
 ## Edge Cases
 
-- **Company names with commas** (Inc., Ltd., d.o.o.) — parser preserves legal suffixes
-- **Empty feed** — Send Jobs sends `warn` to Telegram
-- **No salary/location** — fields set to null
-- **HTML entities** (`&nbsp;`, `&amp;`) — decoded in parser
-- **DOU blocks n8n User-Agent** — browser User-Agent header required
-- **Single item in RSS** — parser handles both array and single object
+- **Company names with commas** (Inc., Ltd., d.o.o.) - parser preserves legal suffixes
+- **Empty feed** - Send Jobs sends `warn` to Telegram
+- **No salary/location** - fields set to null
+- **HTML entities** (`&nbsp;`, `&amp;`) - decoded in parser
+- **DOU blocks n8n User-Agent** - browser User-Agent header required
+- **Single item in RSS** - parser handles both array and single object
 
 ## Observability
 
@@ -90,4 +90,4 @@ Available DOU filters (not used — backend filters later):
 | API error (criteria) | `error` | Get Criteria sub-workflow |
 | API error (ingest) | `error` | Send Jobs sub-workflow |
 | RSS fetch error | `error` | DOU Scraper (Format Error → Notify Error) |
-| Workflow crash | — | n8n Executions tab |
+| Workflow crash | - | n8n Executions tab |

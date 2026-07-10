@@ -8,7 +8,7 @@ used to keep only jobs whose skill tags match the user's tracked categories (e.g
 
 **Folder:** Scrapers | **Tags:** `scraper`, `landingjobs`
 
-> **Wire slug:** `landingjobs` — must equal `JobSource.LANDINGJOBS.value` exactly. The API's
+> **Wire slug:** `landingjobs` - must equal `JobSource.LANDINGJOBS.value` exactly. The API's
 > `fromValue` is case-insensitive but NOT separator-insensitive, so `landing_jobs` would 400.
 
 ## Architecture
@@ -17,7 +17,7 @@ Reuses the shared sub-workflows (folder: Shared, tag: `shared`):
 
 | Sub-workflow | ID | Purpose |
 |---|---|---|
-| **Get Criteria** | `51QbvQ9rXWCQSL9Y` | `GET /criteria?source=landingjobs` — returns tracked categories. Logs errors, throws on failure. |
+| **Get Criteria** | `51QbvQ9rXWCQSL9Y` | `GET /criteria?source=landingjobs` - returns tracked categories. Logs errors, throws on failure. |
 | **Send Jobs** | `3JhDuzeLD3FbIOP1` | has-jobs check, `POST /jobs/ingest`, success/warn/error Telegram logging. |
 | **Telegram Notify** | `TQShysginOAn9uQs` | routes `{level, message}` to Telegram topics. |
 
@@ -150,7 +150,7 @@ return [{ json: { level: "error", message: `${$workflow.name}: ${err.error || er
 - **Pagination:** the API accepts `?limit=`; add `?offset=` pages in Build Request if 200 is not
   enough. Volume is modest, so a single page is usually sufficient.
 - **Geo:** Landing.jobs is pan-EU and remote-first; no US-authorization filter is needed. When
-  `remote` is false the role is on-site in an EU city — kept only if you want relocation leads,
+  `remote` is false the role is on-site in an EU city - kept only if you want relocation leads,
   otherwise add `if (!job.remote) continue;` to Parse.
 - **category is mandatory** on every ingested job (`JobIngestRequest.category`, no default). Jobs
   with no tag match to a tracked category are dropped rather than sent without one.

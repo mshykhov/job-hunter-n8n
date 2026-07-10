@@ -8,7 +8,7 @@ tracked categories.
 
 **Folder:** Scrapers | **Tags:** `scraper`, `nofluffjobs`
 
-> **Wire slug:** `nofluffjobs` — must equal `JobSource.NOFLUFFJOBS.value`.
+> **Wire slug:** `nofluffjobs` - must equal `JobSource.NOFLUFFJOBS.value`.
 
 ## Architecture
 
@@ -40,7 +40,7 @@ Content-Type: application/json
 { "criteriaSearch": { "category": ["backend"], "seniority": ["senior"] }, "page": {N} }
 ```
 Response: `{ postings: [...], totalPages, totalCount, ... }`. The query params (`salaryCurrency`,
-`salaryPeriod`, `language`) are required — omitting them returns an RFC-7807 error, not results.
+`salaryPeriod`, `language`) are required - omitting them returns an RFC-7807 error, not results.
 
 ## Flow (9 nodes)
 
@@ -56,7 +56,7 @@ Schedule Trigger (15 min)
 
 ## Node Details
 
-### 1. Schedule Trigger — every 15 minutes.
+### 1. Schedule Trigger - every 15 minutes.
 
 ### 2. Set Source
 ```javascript
@@ -144,7 +144,7 @@ const jobs = $input.all().map((i) => i.json);
 return [{ json: { body: jobs, count: jobs.length, source: "nofluffjobs" } }];
 ```
 
-### 8. Send Jobs (Execute Workflow `3JhDuzeLD3FbIOP1`) — `onError: continueErrorOutput`.
+### 8. Send Jobs (Execute Workflow `3JhDuzeLD3FbIOP1`) - `onError: continueErrorOutput`.
 
 ### 9. Format Error → Notify Error (Execute Workflow `TQShysginOAn9uQs`)
 ```javascript
@@ -154,9 +154,9 @@ return [{ json: { level: "error", message: `${$workflow.name}: ${err.error || er
 
 ## Notes
 
-- **POST, not GET** — an n8n HTTP Request node handles this; a plain fetch of the page HTML will not.
+- **POST, not GET** - an n8n HTTP Request node handles this; a plain fetch of the page HTML will not.
 - **Salary is always disclosed** on this board, which makes it high-signal for score/ranking.
-- **help4Ua** is captured in `rawData` for later ranking — do not hard-filter on it.
+- **help4Ua** is captured in `rawData` for later ranking - do not hard-filter on it.
 - **`region=pl`** returns CEE + remote-EU roles; `location.fullyRemote` is the remote gate.
 - **category is mandatory** on every job; postings whose technology/tiles do not match a tracked
   category (e.g. PHP, .NET) are dropped.

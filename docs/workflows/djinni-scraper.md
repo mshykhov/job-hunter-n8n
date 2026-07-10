@@ -10,7 +10,7 @@ Uses 3 shared sub-workflows (folder: Shared, tag: `shared`):
 
 | Sub-workflow | Purpose |
 |---|---|
-| **Get Criteria** | `GET /criteria?source={source}` — returns categories. Logs errors to Telegram, throws on failure. |
+| **Get Criteria** | `GET /criteria?source={source}` - returns categories. Logs errors to Telegram, throws on failure. |
 | **Send Jobs** | Checks count, `POST /jobs/ingest`, logs success/warn/error to Telegram. |
 | **Telegram Notify** | Routes `{level, message}` to Telegram forum topics (error/warn → alerts, info → logs). |
 
@@ -20,9 +20,9 @@ Uses 3 shared sub-workflows (folder: Shared, tag: `shared`):
 
 | Approach | Jobs/request | Company | Location | Salary | Speed |
 |---|---|---|---|---|---|
-| **RSS only** | 30 | — | — | — | Fast |
+| **RSS only** | 30 | - | - | - | Fast |
 | RSS + individual pages | 30 | ✓ | ✓ | ✓ (rare) | Slow (~3 min) |
-| **Listing pages** (chosen) | ~20 | ✓ | ✓ | — | Fast (~1 min) |
+| **Listing pages** (chosen) | ~20 | ✓ | ✓ | - | Fast (~1 min) |
 
 Djinni listing pages (`/jobs/?primary_keyword=...`) contain a **JSON-LD array** with all ~20 job postings per page, including `hiringOrganization`, `jobLocationType`, `datePosted`. Job URLs are extracted from HTML `<a>` links. Location metadata is in HTML card text.
 
@@ -36,8 +36,8 @@ Djinni listing pages (`/jobs/?primary_keyword=...`) contain a **JSON-LD array** 
 | company | JSON-LD `hiringOrganization.name` | Stable |
 | url | HTML `<a href="/jobs/{id}-{slug}/">` | Stable (regex) |
 | description | JSON-LD `description` | Stable |
-| source | Hardcoded `"djinni"` | — |
-| salary | — | Not available on listing pages |
+| source | Hardcoded `"djinni"` | - |
+| salary | - | Not available on listing pages |
 | location | HTML card metadata (·-separated) | Medium (HTML structure) |
 | remote | JSON-LD `jobLocationType === "TELECOMMUTE"` | Stable |
 | publishedAt | JSON-LD `datePosted` | Stable |
@@ -137,7 +137,7 @@ for (const inputItem of $input.all()) {
     locations.push(locMatch[1].trim());
   }
 
-  // 4. Build job records — match JSON-LD entries to URLs by position
+  // 4. Build job records - match JSON-LD entries to URLs by position
   for (let i = 0; i < jobPostings.length; i++) {
     const posting = jobPostings[i];
     if (posting['@type'] !== 'JobPosting') continue;
@@ -197,11 +197,11 @@ https://djinni.co/jobs/?primary_keyword={category}
 Categories come from the API dynamically (`GET /criteria?source=djinni`).
 
 Available query parameters (can be added later):
-- `page={N}` — pagination (20 jobs per page)
-- `exp_level=2y` — minimum experience (no_exp, 1y, 2y, 3y, 5y, 10y)
-- `english_level=upper_intermediate` — English level filter
-- `employment=remote` — remote only
-- `region=UKR` — region filter
+- `page={N}` - pagination (20 jobs per page)
+- `exp_level=2y` - minimum experience (no_exp, 1y, 2y, 3y, 5y, 10y)
+- `english_level=upper_intermediate` - English level filter
+- `employment=remote` - remote only
+- `region=UKR` - region filter
 
 ## JSON-LD on Listing Page
 
@@ -240,7 +240,7 @@ Each listing page contains a single `<script type="application/ld+json">` block 
 | url | HTML `<a href>` | https://djinni.co/jobs/798656-... |
 | description | JSON-LD `description` | CodeSmart is seeking... |
 | source | Hardcoded | djinni |
-| salary | — (not available) | null |
+| salary | - (not available) | null |
 | location | HTML card metadata | Countries of Europe or Ukraine |
 | remote | JSON-LD `jobLocationType` | true |
 | publishedAt | JSON-LD `datePosted` | 2026-02-24T23:01:29.697567 |
@@ -263,7 +263,7 @@ Each listing page contains a single `<script type="application/ld+json">` block 
 
 ## Environment Variables
 
-Same as DOU — no additional env vars needed:
+Same as DOU - no additional env vars needed:
 
 | Variable | Purpose |
 |---|---|
@@ -274,13 +274,13 @@ Same as DOU — no additional env vars needed:
 
 ## Edge Cases
 
-- **Empty JSON-LD array** — page has no jobs for this category, Parse Jobs skips it
-- **URL count mismatch** — if JSON-LD entries ≠ HTML links, unmatched entries get url = null
-- **Location parse fails** — location = null, rest of the data still sent
-- **HTML structure change** — JSON-LD is stable (schema.org standard); HTML selectors may break
-- **HTML entities in description** — JSON-LD description is already decoded
-- **Mixed languages** — descriptions in Ukrainian and English (UTF-8)
-- **No salary** — Djinni hides salary on listing pages; ~80% of listings don't disclose it at all
+- **Empty JSON-LD array** - page has no jobs for this category, Parse Jobs skips it
+- **URL count mismatch** - if JSON-LD entries ≠ HTML links, unmatched entries get url = null
+- **Location parse fails** - location = null, rest of the data still sent
+- **HTML structure change** - JSON-LD is stable (schema.org standard); HTML selectors may break
+- **HTML entities in description** - JSON-LD description is already decoded
+- **Mixed languages** - descriptions in Ukrainian and English (UTF-8)
+- **No salary** - Djinni hides salary on listing pages; ~80% of listings don't disclose it at all
 
 ## Performance
 
@@ -309,7 +309,7 @@ To add pagination:
 2. Extract total page count from HTML pagination element on page 1
 3. Or use n8n HTTP Request built-in pagination (Options → Pagination)
 
-Not needed for MVP — page 1 captures recent postings, and the 15-min schedule ensures we don't miss new jobs.
+Not needed for MVP - page 1 captures recent postings, and the 15-min schedule ensures we don't miss new jobs.
 
 ## Observability
 
@@ -320,4 +320,4 @@ Not needed for MVP — page 1 captures recent postings, and the 15-min schedule 
 | API error (criteria) | `error` | Get Criteria sub-workflow |
 | API error (ingest) | `error` | Send Jobs sub-workflow |
 | Page fetch error | `error` | Djinni Scraper (Format Error → Notify Error) |
-| Workflow crash | — | n8n Executions tab |
+| Workflow crash | - | n8n Executions tab |
