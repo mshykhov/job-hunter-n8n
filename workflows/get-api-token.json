@@ -106,7 +106,7 @@
       "id": "f1000001-0000-4000-8000-000000000099",
       "name": "Sticky Note",
       "parameters": {
-        "content": "## Get API Token\nShared sub-workflow. Obtains OAuth2 M2M token from Auth0.\nCaches token using workflow static data (TTL = Auth0 expires_in - 2 min buffer).\n\n**Input:** `{ source: string }`\n**Output:** `{ source, token }` (empty string if auth disabled)"
+        "content": "## Get API Token\nShared sub-workflow. Obtains OAuth2 M2M token from Authentik (client_credentials + service-account app password).\nCaches token using workflow static data (TTL = expires_in - 2 min buffer).\n\n**Input:** `{ source: string }`\n**Output:** `{ source, token }` (empty string if auth disabled)"
       },
       "position": [
         -64,
@@ -143,7 +143,7 @@
           "conditions": [
             {
               "id": "check-auth-enabled",
-              "leftValue": "={{ $env.AUTH0_ENABLED }}",
+              "leftValue": "={{ $env.OIDC_ENABLED }}",
               "operator": {
                 "operation": "equals",
                 "type": "string"
@@ -172,12 +172,35 @@
       "name": "Get Token",
       "onError": "continueErrorOutput",
       "parameters": {
-        "jsonBody": "={{ JSON.stringify({ grant_type: 'client_credentials', client_id: $env.JOB_HUNTER_API_M2M_AUTH0_CLIENT_ID, client_secret: $env.JOB_HUNTER_API_M2M_AUTH0_CLIENT_SECRET, audience: $env.JOB_HUNTER_API_AUTH0_AUDIENCE }) }}",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "name": "client_id",
+              "value": "={{ $env.JOB_HUNTER_API_M2M_AUTHENTIK_CLIENT_ID }}"
+            },
+            {
+              "name": "username",
+              "value": "={{ $env.JOB_HUNTER_API_M2M_AUTHENTIK_USERNAME }}"
+            },
+            {
+              "name": "password",
+              "value": "={{ $env.JOB_HUNTER_API_M2M_AUTHENTIK_PASSWORD }}"
+            },
+            {
+              "name": "scope",
+              "value": "profile job-hunter-api"
+            }
+          ]
+        },
+        "contentType": "form-urlencoded",
         "method": "POST",
         "options": {},
         "sendBody": true,
-        "specifyBody": "json",
-        "url": "={{ 'https://' + $env.AUTH0_DOMAIN + '/oauth/token' }}"
+        "url": "={{ $env.AUTHENTIK_TOKEN_URL }}"
       },
       "position": [
         896,
@@ -216,7 +239,7 @@
       "id": "f1000001-0000-4000-8000-000000000010",
       "name": "Format Error",
       "parameters": {
-        "jsCode": "const item = $input.first().json;\nconst source = $('Trigger').first().json.source || 'unknown';\nlet statusCode = 'N/A';\nlet message = 'Unexpected error';\n\nif (item.statusCode) statusCode = String(item.statusCode);\nif (item.body?.error_description) message = item.body.error_description;\nelse if (item.body?.error) message = item.body.error;\n\nconst raw = item.error?.message || '';\nif (raw && message === 'Unexpected error') message = raw;\n\nreturn [{json: {\n  level: 'error',\n  message: `Auth0 token request failed: HTTP ${statusCode} \\u2014 ${message}`,\n  source\n}}];"
+        "jsCode": "const item = $input.first().json;\nconst source = $('Trigger').first().json.source || 'unknown';\nlet statusCode = 'N/A';\nlet message = 'Unexpected error';\n\nif (item.statusCode) statusCode = String(item.statusCode);\nif (item.body?.error_description) message = item.body.error_description;\nelse if (item.body?.error) message = item.body.error;\n\nconst raw = item.error?.message || '';\nif (raw && message === 'Unexpected error') message = raw;\n\nreturn [{json: {\n  level: 'error',\n  message: `Authentik token request failed: HTTP ${statusCode} \\u2014 ${message}`,\n  source\n}}];"
       },
       "position": [
         1120,

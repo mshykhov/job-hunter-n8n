@@ -10,7 +10,7 @@ Uses 4 shared sub-workflows (folder: Shared, tag: `shared`):
 
 | Sub-workflow | Purpose |
 |---|---|
-| **Get API Token** | Obtains OAuth2 M2M token from Auth0 (cached 10 min). |
+| **Get API Token** | Obtains OAuth2 M2M token from Authentik (cached until expiry). |
 | **Get Criteria** | `GET /criteria?source={source}` - returns categories + remoteOnly. Logs errors to Telegram, throws on failure. |
 | **Send Jobs** | Checks count, `POST /jobs/ingest`, logs success/warn/error to Telegram. |
 | **Telegram Notify** | Routes `{level, message}` to Telegram forum topics (error/warn → alerts, info → logs). |
