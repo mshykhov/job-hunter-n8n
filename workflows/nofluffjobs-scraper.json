@@ -56,18 +56,7 @@
         [
           {
             "index": 0,
-            "node": "Prepare Ingest",
-            "type": "main"
-          }
-        ]
-      ]
-    },
-    "Prepare Ingest": {
-      "main": [
-        [
-          {
-            "index": 0,
-            "node": "Send Jobs",
+            "node": "Collect for Check",
             "type": "main"
           }
         ]
@@ -90,6 +79,91 @@
           {
             "index": 0,
             "node": "Get Criteria",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Collect for Check": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Check Jobs",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Check Jobs": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Filter New",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Format Error",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Filter New": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Has New Jobs?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Has New Jobs?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Split Jobs",
+            "type": "main"
+          }
+        ],
+        []
+      ]
+    },
+    "Split Jobs": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Fetch Details",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Fetch Details": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Build Ingest",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Build Ingest": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Jobs",
             "type": "main"
           }
         ]
@@ -218,19 +292,6 @@
       "typeVersion": 2
     },
     {
-      "id": "30000001-0000-4000-8000-000000000007",
-      "name": "Prepare Ingest",
-      "parameters": {
-        "jsCode": "const jobs = $input.all().map((i) => i.json);\nreturn [{ json: { body: jobs, count: jobs.length, source: \"nofluffjobs\" } }];"
-      },
-      "position": [
-        1344,
-        400
-      ],
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2
-    },
-    {
       "id": "30000001-0000-4000-8000-000000000008",
       "name": "Send Jobs",
       "onError": "stopWorkflow",
@@ -285,8 +346,8 @@
       "id": "30000001-0000-4000-8000-000000000100",
       "name": "Note",
       "parameters": {
-        "content": "## NoFluffJobs Scraper\n\nSenior backend roles from the NoFluffJobs search API (`POST /api/search/posting`, mandatory salary disclosure).\n\n**Schedule:** Every 15 minutes\n**Source:** `nofluffjobs`\n\n1. Get criteria from Job Hunter API\n2. POST 3 pages of backend+senior postings\n3. Match category against technology + tiles\n4. Normalize & send to /jobs/ingest",
-        "height": 280,
+        "content": "## NoFluffJobs Scraper\n\nSenior backend roles from the NoFluffJobs search API (`POST /api/search/posting`, mandatory salary disclosure).\n\n**Schedule:** Every 15 minutes\n**Source:** `nofluffjobs`\n\n1. Get criteria + search 3 pages of backend/senior postings (no description in search)\n2. Check which URLs are new/updated via shared Check Jobs\n3. Fetch posting detail only for new/updated -> compose description\n4. Normalize & send to /jobs/ingest",
+        "height": 300,
         "width": 340
       },
       "position": [
@@ -295,6 +356,149 @@
       ],
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1
+    },
+    {
+      "id": "30000001-0000-4000-8000-000000000011",
+      "name": "Collect for Check",
+      "parameters": {
+        "jsCode": "const source = $('Set Source').first().json.source;\nconst allJobs = $input.all().map((i) => i.json);\nconst jobs = JSON.stringify(allJobs.map((j) => ({\n  url: j.url, title: j.title, company: j.company,\n  salary: j.salary, location: j.location, publishedAt: j.publishedAt,\n})));\nreturn [{ json: { allJobs, jobs, source, totalFound: allJobs.length } }];"
+      },
+      "position": [
+        1344,
+        400
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "Builds check payload (jobs JSON) and keeps full postings for enrichment."
+    },
+    {
+      "id": "30000001-0000-4000-8000-000000000012",
+      "name": "Check Jobs",
+      "parameters": {
+        "options": {},
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "XvtwnTiaAaV70KbH"
+        }
+      },
+      "position": [
+        1568,
+        400
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "onError": "continueErrorOutput",
+      "notes": "Shared sub-workflow. Returns {newUrls, updatedUrls, unchangedUrls}."
+    },
+    {
+      "id": "30000001-0000-4000-8000-000000000013",
+      "name": "Filter New",
+      "parameters": {
+        "jsCode": "const { allJobs, totalFound, source } = $('Collect for Check').first().json;\nconst r = $input.first().json;\nconst fresh = new Set([...(r.newUrls || []), ...(r.updatedUrls || [])]);\nconst newJobs = allJobs.filter((j) => fresh.has(j.url));\nreturn [{ json: {\n  newJobs,\n  enrichCount: newJobs.length,\n  newCount: (r.newUrls || []).length,\n  updatedCount: (r.updatedUrls || []).length,\n  unchangedCount: (r.unchangedUrls || []).length,\n  totalFound, source,\n} }];"
+      },
+      "position": [
+        1792,
+        400
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "Keeps only new + updated postings for detail enrichment."
+    },
+    {
+      "id": "30000001-0000-4000-8000-000000000014",
+      "name": "Has New Jobs?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{ $json.enrichCount }}",
+              "operator": {
+                "operation": "gt",
+                "type": "number"
+              },
+              "rightValue": 0
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        2016,
+        400
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "30000001-0000-4000-8000-000000000015",
+      "name": "Split Jobs",
+      "parameters": {
+        "jsCode": "const { newJobs, source } = $('Filter New').first().json;\nreturn newJobs.map((j) => {\n  const slug = (j.url.split('/job/')[1] || '').trim();\n  return { json: { ...j, detailUrl: `https://nofluffjobs.com/api/posting/${slug}`, source } };\n});"
+      },
+      "position": [
+        2240,
+        304
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "One item per new posting; derives NFJ detail API url from the job slug."
+    },
+    {
+      "id": "30000001-0000-4000-8000-000000000016",
+      "name": "Fetch Details",
+      "parameters": {
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            }
+          ]
+        },
+        "method": "GET",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchInterval": 2000,
+              "batchSize": 1
+            }
+          },
+          "timeout": 30000
+        },
+        "sendHeaders": true,
+        "url": "={{ $json.detailUrl }}"
+      },
+      "position": [
+        2464,
+        304
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "onError": "continueRegularOutput",
+      "notes": "Phase 2. NFJ posting detail (has the description body the search API omits)."
+    },
+    {
+      "id": "30000001-0000-4000-8000-000000000017",
+      "name": "Build Ingest",
+      "parameters": {
+        "jsCode": "const jobsIn = $('Split Jobs').all().map((i) => i.json);\nconst resp = $input.all().map((i) => i.json);\nconst source = $('Filter New').first().json.source;\n\nconst stripHtml = (s) => String(s || '')\n  .replace(/<[^>]+>/g, ' ')\n  .replace(/&nbsp;/g, ' ')\n  .replace(/&amp;/g, '&')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\nconst compose = (d) => {\n  if (!d || typeof d !== 'object') return '';\n  const parts = [];\n  const tasks = d.specs && d.specs.dailyTasks;\n  if (Array.isArray(tasks) && tasks.length) {\n    parts.push('Daily tasks:\\n' + tasks.map((t) => '- ' + stripHtml(t)).join('\\n'));\n  }\n  const reqDesc = stripHtml(d.requirements && d.requirements.description);\n  if (reqDesc) parts.push('Requirements:\\n' + reqDesc);\n  const musts = ((d.requirements && d.requirements.musts) || []).map((m) => m.value).filter(Boolean);\n  if (musts.length) parts.push('Must have: ' + musts.join(', '));\n  const nices = ((d.requirements && d.requirements.nices) || []).map((m) => m.value).filter(Boolean);\n  if (nices.length) parts.push('Nice to have: ' + nices.join(', '));\n  return parts.join('\\n\\n');\n};\n\nconst body = jobsIn.map((j, i) => {\n  const description = compose(resp[i]);\n  const { detailUrl, ...job } = j;\n  return { ...job, description };\n});\n\nreturn [{ json: { body, count: body.length, source } }];"
+      },
+      "position": [
+        2688,
+        304
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "Composes plain-text description from detail (daily tasks + requirements) and merges into ingest payload."
     }
   ],
   "settings": {
