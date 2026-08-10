@@ -59,6 +59,19 @@ Pushing `workflows/**` to master triggers the deploy via GitHub Actions. The dep
 aborts when the target instance has changes missing from git history (drift-guard) -
 resync with `export.sh` + commit, or override with `FORCE=1`.
 
+## Agent Configuration
+
+`.rulesync/` is the canonical source for repository instructions, scoped rules, and
+workflow skills. `CLAUDE.md`, `AGENTS.md`, `.claude/`, and `.agents/` contain generated
+target projections and must not be edited directly.
+
+```bash
+npm ci
+npm run rulesync:dry-run
+npm run rulesync:generate
+npm run rulesync:verify
+```
+
 ## Architecture
 
 ```

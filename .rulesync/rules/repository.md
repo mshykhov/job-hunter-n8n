@@ -1,3 +1,6 @@
+---
+root: true
+---
 # Job Hunter n8n workflows
 
 n8n workflow repository for collecting vacancies from job platforms and sending

@@ -20,3 +20,14 @@ Desktop.ini
 *.iml
 *.swp
 *~
+
+# Agent configuration tooling
+node_modules/
+
+# Generated agent configuration
+!.claude/
+.claude/*
+!.claude/rules/
+!.claude/rules/**
+!.claude/skills/
+!.claude/skills/**
