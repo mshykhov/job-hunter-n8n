@@ -112,7 +112,12 @@ Typical numbers:
 
 ### How it works
 
-New endpoint `POST /jobs/enrich` on job-spy-api. Fetches full detail pages from LinkedIn in parallel using a proxy worker pool with browser fingerprints.
+`POST /jobs/enrich` on job-spy-api fetches full detail pages from LinkedIn in
+parallel using a proxy worker pool with browser fingerprints. Since job-spy-api
+0.4.4, workers wait on the shared queue until all queued and requeued attempts are
+complete. A worker that loses its proxy requeues the current job before exiting, so
+another live worker can consume it even when the queue was temporarily empty. Jobs
+become `skipped` only after every proxy worker has exited.
 
 ### What enrichment returns (per job)
 
@@ -235,8 +240,8 @@ Each proxy has a **stable browser fingerprint** (User-Agent, Sec-Ch-Ua, Accept-L
 
 | LinkedIn Response | Action |
 |---|---|
-| **429 Too Many Requests** | Proxy worker **dies**. Remaining jobs stay in queue for alive workers |
-| **Redirect to `/signup`** | Proxy worker **dies**. Same as 429 |
+| **429 Too Many Requests** | Proxy worker **dies**. Its current job is requeued before exit and alive workers keep waiting for it |
+| **Redirect to `/signup`** | Proxy worker **dies**. Same requeue behavior as 429 |
 | **All workers dead** | Remaining jobs returned as `status: "skipped"`. Next cycle retries them |
 
 ### Timing estimate
